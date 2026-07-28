@@ -1,4 +1,4 @@
-# Dhruva — Product Requirements Document
+# Sarthi — Product Requirements Document
 
 **Status:** Draft v0.1 · Design / pre-implementation
 **Date:** 2026-07-28
@@ -8,13 +8,13 @@
 
 ## 1. Summary
 
-Dhruva is a **multi-tenant, grounded-assistant engine**. Product teams integrate it to give their application an on-brand AI assistant that answers from *that product's own knowledge* — both document corpora and live/structured data — with **mandatory citations and no fabrication**. The engine owns the hard, reusable machinery (retrieval, ranking, grounding, isolation, model routing, budgeting, caching, memory, proactive digests); each product supplies only a thin, declarative integration.
+Sarthi is a **multi-tenant, grounded-assistant engine**. Product teams integrate it to give their application an on-brand AI assistant that answers from *that product's own knowledge* — both document corpora and live/structured data — with **mandatory citations and no fabrication**. The engine owns the hard, reusable machinery (retrieval, ranking, grounding, isolation, model routing, budgeting, caching, memory, proactive digests); each product supplies only a thin, declarative integration.
 
 The bet: the assistant machinery is ~80% the same across products; the differences are *configuration and connectors*, not code. Build the engine once; every product ships an assistant by plugging in.
 
 ## 2. Problem & Motivation
 
-Each product in the family will independently want an AI assistant grounded in its own data (Kora: coach a user from their food logs; mark8ly: help merchants/shoppers from catalog & orders; home-chef: recipes & planning; HMS: clinician/patient support from records + medical knowledge). Building that stack N times — RAG pipeline, grounding, citations, per-tenant isolation, model routing, budget metering, safety guardrails, eval harness — is wasteful and inconsistent. Dhruva centralizes the machinery so products focus on their domain (connectors, persona, rules, evals), and the assistant experience stays consistent and trustworthy across the family.
+Each product in the family will independently want an AI assistant grounded in its own data (Kora: coach a user from their food logs; mark8ly: help merchants/shoppers from catalog & orders; home-chef: recipes & planning; HMS: clinician/patient support from records + medical knowledge). Building that stack N times — RAG pipeline, grounding, citations, per-tenant isolation, model routing, budget metering, safety guardrails, eval harness — is wasteful and inconsistent. Sarthi centralizes the machinery so products focus on their domain (connectors, persona, rules, evals), and the assistant experience stays consistent and trustworthy across the family.
 
 ## 3. Goals & Non-Goals
 
@@ -25,7 +25,7 @@ Each product in the family will independently want an AI assistant grounded in i
 - Support both **document knowledge** (files/corpora) and **structured/live-data knowledge** (a product's DB/API exposed as tools).
 - **Per-tenant model policy**, including self-hosted open models for data-residency/PHI.
 - Deployable **shared-multitenant** (consumer products) *and* **single-tenant / on-prem** (HMS-class tenants).
-- **Graceful degradation:** if Dhruva is down, the host product still fully works; it just loses the assistant.
+- **Graceful degradation:** if Sarthi is down, the host product still fully works; it just loses the assistant.
 
 ### Non-Goals (for now)
 - Not a general chatbot platform for arbitrary external customers (family-internal tenants first).
@@ -35,7 +35,7 @@ Each product in the family will independently want an AI assistant grounded in i
 
 ## 4. Consumers / Tenants (roadmap)
 
-| Tenant | Domain | Status | Role in Dhruva |
+| Tenant | Domain | Status | Role in Sarthi |
 |---|---|---|---|
 | **Kora** | Nutrition coaching | Built (UI+backend ready) | **Tenant #1** — first real integration + proving ground. Low-stakes, well-understood. |
 | **home-chef** | Recipes / meal planning | Prod-ready | Fast-follow consumer tenant. |
@@ -48,7 +48,7 @@ Each product in the family will independently want an AI assistant grounded in i
 
 1. **Grounded or silent.** Answers cite retrieved sources; low-confidence → honest escalation, never a fabricated fact. Encoded structurally (the model never invents numbers the data doesn't support).
 2. **New tenant = config + connector, zero core changes.** If onboarding mark8ly/home-chef forces an engine change, the abstraction leaked.
-3. **Enhancement, not dependency.** Dhruva is always off the host product's critical path and degrades gracefully.
+3. **Enhancement, not dependency.** Sarthi is always off the host product's critical path and degrades gracefully.
 4. **Design for the hardest tenant, implement incrementally.** HMS's requirements shape the seams; we don't build them all up front.
 5. **Isolation is first-class**, not an afterthought — especially across sensitive, heterogeneous domains.
 6. **Config over code for domain specifics.** Domain smarts (persona, guardrails, output shape, model choice, evals) are per-tenant configuration; the engine is generic machinery.
@@ -58,8 +58,8 @@ Each product in the family will independently want an AI assistant grounded in i
 A product integrates by registering four things and nothing more:
 
 ### 6.1 Knowledge sources (one or more, mixed)
-- **Document KB** — a corpus the product provides (help docs, policies, domain articles). Dhruva ingests → chunks → embeds → indexes.
-- **Structured / live-data KB (tool retriever)** — the product exposes a read-only connector (an API/tool) over its own data (Kora's user logs & targets; mark8ly's catalog/orders; home-chef's recipes). Dhruva calls it as a tool at query time. **This is essential** — for several tenants the "knowledge" is live per-user data, not a document corpus.
+- **Document KB** — a corpus the product provides (help docs, policies, domain articles). Sarthi ingests → chunks → embeds → indexes.
+- **Structured / live-data KB (tool retriever)** — the product exposes a read-only connector (an API/tool) over its own data (Kora's user logs & targets; mark8ly's catalog/orders; home-chef's recipes). Sarthi calls it as a tool at query time. **This is essential** — for several tenants the "knowledge" is live per-user data, not a document corpus.
 
 ### 6.2 Model policy
 - Which model per task (chat / embed / rerank / classify), with **fallback chains**.
@@ -74,7 +74,7 @@ A product integrates by registering four things and nothing more:
 
 ## 7. Engine Responsibilities
 
-Dhruva owns everything not in §6:
+Sarthi owns everything not in §6:
 - **Ingestion & indexing** for document KBs (content-hash incremental, pluggable chunkers).
 - **Retrieval** — hybrid (dense vector ∪ keyword), reciprocal-rank fusion, reranking; tool-retriever invocation for structured KBs.
 - **Grounded answer composition** with mandatory citations and confidence gating.
@@ -87,7 +87,7 @@ Dhruva owns everything not in §6:
 ## 8. Architecture Overview
 
 ```
-Product UI ──▶ Product BFF (per-product wrapper) ──▶ Dhruva API (HTTP + SSE)
+Product UI ──▶ Product BFF (per-product wrapper) ──▶ Sarthi API (HTTP + SSE)
                                                         │
                     ┌───────────────────────────────────┼───────────────────────────────┐
                     ▼                     ▼               ▼                ▼               ▼
@@ -99,7 +99,7 @@ Product UI ──▶ Product BFF (per-product wrapper) ──▶ Dhruva API (HTT
              Postgres + pgvector (per-tenant namespaces)   Redis (cache)   Object store (docs)
 ```
 
-- **Integration pattern:** products never call the engine directly from the client. A thin **per-product BFF** holds the product's Dhruva credentials, applies timeouts/circuit-breaking, and translates between product and engine. This keeps the client dumb and the failure handling local (degrade gracefully).
+- **Integration pattern:** products never call the engine directly from the client. A thin **per-product BFF** holds the product's Sarthi credentials, applies timeouts/circuit-breaking, and translates between product and engine. This keeps the client dumb and the failure handling local (degrade gracefully).
 - **Contract:** a small, stable HTTP + **SSE (streaming)** surface — `POST /chat`, `GET /chat/stream`, thread/session endpoints, plus tenant/KB admin endpoints. Versioned.
 - **Ports & adapters:** `ModelProvider`, `EmbeddingProvider`, `Reranker`, `KnowledgeStore`, `ToolRetriever`, `Cache`, `Meter` are interfaces with swappable implementations — the mechanism behind "config, not code."
 
@@ -134,14 +134,14 @@ Product UI ──▶ Product BFF (per-product wrapper) ──▶ Dhruva API (HTT
 
 ## 13. Proactivity
 
-Beyond request/response, Dhruva supports **proactive digests** reusing the same grounded machinery, triggered on-demand, on a **schedule** (cron per tenant), or by **events**. First use: **Kora's Weekly Report** — aggregate the week's stats deterministically, have the model summarize *those numbers* into 2–3 grounded takeaways + one focus for next week. Proactive work is queue-backed (a restart delays a digest, never drops it).
+Beyond request/response, Sarthi supports **proactive digests** reusing the same grounded machinery, triggered on-demand, on a **schedule** (cron per tenant), or by **events**. First use: **Kora's Weekly Report** — aggregate the week's stats deterministically, have the model summarize *those numbers* into 2–3 grounded takeaways + one focus for next week. Proactive work is queue-backed (a restart delays a digest, never drops it).
 
 ## 14. Non-Functional Requirements
 
 - **Resilience / SPOF:** the engine is a single *logical* service but horizontally scaled/stateless (N replicas, multi-AZ, health-checked). The primary mitigation is architectural — **degrade, don't fail** (assistant down ≠ product down), plus BFF circuit-breaker/timeout/serve-last-good, and provider fallback. The real multi-tenant risk to engineer against is **noisy-neighbor** (per-tenant quotas, isolated queues, budget caps), not hardware failure.
 - **Stateful SPOF:** the Postgres+pgvector store (KB + memory) needs real HA (primary+replica, PITR backups) and the isolation model above.
 - **Security & compliance:** per-tenant isolation; PHI/data-residency for HMS (HIPAA / GDPR-health / India DPDP); auditability of retrieval + answer + decisions; secrets never indexed.
-- **Performance:** streaming (SSE) first-token latency matters for chat; proactive/batch tolerant of higher latency. Real-time product-core paths are *not* routed through Dhruva.
+- **Performance:** streaming (SSE) first-token latency matters for chat; proactive/batch tolerant of higher latency. Real-time product-core paths are *not* routed through Sarthi.
 - **Observability:** traces, per-answer citation/decision logs, per-tenant cost/usage, eval scores over time.
 - **Budget/cost:** per-tenant budget metering & caps (Kora's meter is the seed); model routing keeps cost within policy.
 
@@ -155,8 +155,8 @@ Beyond request/response, Dhruva supports **proactive digests** reusing the same 
 
 ## 16. Relationship to other efforts
 
-- **Otto (Sam's, `../otto`)** — a *separate* infra/SRE-automation assistant (internal platform-ops, GitOps corpus, Python/Azure). Different audience, domain, trust model, and stack. **Dhruva stays independent** — its own repo, stack, and roadmap. At most they trade patterns/learnings, not a runtime or library.
-- **Kora's `ai` package** — the seed for Dhruva's engine (provider routing, budget metering, cache, pgvector retrieval, the "no fabricated numbers" discipline). Dhruva generalizes and extracts this; Kora keeps its **real-time capture→food-resolution** in-process (latency-critical) and calls Dhruva only for the assistant/coaching path.
+- **Otto (Sam's, `../otto`)** — a *separate* infra/SRE-automation assistant (internal platform-ops, GitOps corpus, Python/Azure). Different audience, domain, trust model, and stack. **Sarthi stays independent** — its own repo, stack, and roadmap. At most they trade patterns/learnings, not a runtime or library.
+- **Kora's `ai` package** — the seed for Sarthi's engine (provider routing, budget metering, cache, pgvector retrieval, the "no fabricated numbers" discipline). Sarthi generalizes and extracts this; Kora keeps its **real-time capture→food-resolution** in-process (latency-critical) and calls Sarthi only for the assistant/coaching path.
 
 ## 17. Phased Roadmap / Decomposition
 
@@ -177,13 +177,13 @@ This is a multi-phase platform, not a single spec.
 
 - **Onboarding cost:** tenant #2 (home-chef or mark8ly) integrates with **only** connector + config + evals — zero engine-core changes. (Primary.)
 - **Groundedness:** eval golden-set pass rate ≥ target; citation coverage on substantive claims ~100%; measured hallucination rate near zero.
-- **Resilience:** host product unaffected when Dhruva is down (verified degradation).
+- **Resilience:** host product unaffected when Sarthi is down (verified degradation).
 - **Cost:** within per-tenant budget policy; no cross-tenant budget bleed.
 - **Kora value:** the Weekly Report / coaching surface ships and is used.
 
 ## 20. Open Questions / Decisions Pending
 
-- **Name:** Dhruva ✅ (decided).
+- **Name:** Sarthi ✅ (decided).
 - **Stack:** Go (proposed §15) — confirm.
 - **KB registration UX:** how a product declares a tool retriever (contract shape, auth to the product's data) — needs its own mini-design.
 - **Reranker choice** for a Go/GCP world (hosted rerank vs. embed-only + heuristic).
@@ -193,9 +193,9 @@ This is a multi-phase platform, not a single spec.
 
 ## 21. Glossary
 
-- **Tenant / product** — an app integrating Dhruva (Kora, mark8ly, home-chef, HMS).
+- **Tenant / product** — an app integrating Sarthi (Kora, mark8ly, home-chef, HMS).
 - **Knowledge base (KB)** — a tenant's grounding source: a document corpus and/or a live-data tool retriever.
 - **Model policy** — a tenant's per-task model + fallback configuration.
-- **BFF** — per-product backend-for-frontend that fronts Dhruva for that product.
+- **BFF** — per-product backend-for-frontend that fronts Sarthi for that product.
 - **Grounding** — answering only from retrieved sources, with citations.
 - **Tool retriever** — a read-only connector a product exposes over its own structured/live data.
