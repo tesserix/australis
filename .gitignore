@@ -1,0 +1,11 @@
+# Go
+bin/
+*.exe
+tmp/
+.env
+.env.*
+!.env.example
+.DS_Store
+# IDE
+.idea/
+.vscode/
