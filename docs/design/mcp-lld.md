@@ -128,7 +128,8 @@ for each tool_kb in tenant.knowledge.tool_kbs:
     3. verify object signature against GET /v0/signing-key
     4. assert object digest == config.registry_digest        else FAIL_CLOSED
     5. assert spec.x-tesserix artifact digest == config.artifact_digest  else FAIL_CLOSED
-    6. for each declared tool: assert input/output fingerprints match  else FAIL_CLOSED
+    6. call tools/list through the activated gateway route; require closed input/output schemas
+       and assert their canonical fingerprints match Registry + config  else FAIL_CLOSED
     7. assert every tool effect is read-only                 else FAIL_CLOSED  (D6)
     8. assert route_policy.direct_access == false            else FAIL_CLOSED  (D4)
     9. assert no input-schema property matches tenant-identity shapes (§2)
@@ -138,6 +139,11 @@ for each tool_kb in tenant.knowledge.tool_kbs:
 **Fail closed at every step.** A resolution failure is a tenant-config error
 surfaced at load, not a 500 at 3 a.m. Steps 4–6 are what make ADR-0001 D3 real:
 without them "pinned" is a comment, not a property.
+
+The generated Registry object carries an output fingerprint, not an output
+schema. Therefore step 6 deliberately reads the live MCP contract during
+activation. Runtime invocation still validates every result against that
+activated output schema; request-time discovery is forbidden.
 
 ### 3.3 Cache
 

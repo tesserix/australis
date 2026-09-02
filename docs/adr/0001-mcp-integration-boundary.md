@@ -282,13 +282,21 @@ is the reason D1 is a rule rather than a suggestion.
 
 ## Open items this ADR does not close
 
-- **Stack confirmation.** PRD §20 still lists Go as proposed. The LLD is written
-  in Go against `github.com/modelcontextprotocol/go-sdk`; that SDK's client-side
-  maturity needs a spike and a pinned version before Phase 1. Servers themselves
-  are Python on `tesserix-mcp-runtime`, which is settled.
 - **Tenant config surface.** Config-as-code versus admin API (PRD §20) is
   unresolved; the LLD assumes config-as-code and marks the assumption inline.
 - **HMS on-prem Registry.** A single-tenant deployment with no reachable shared
   Registry needs a local catalog mode. Deferred with HMS, per PRD §4.
 - **What the brain learns and from whose data.** Decided in
   [ADR-0002](0002-shared-brain-and-learning-flywheel.md).
+
+## Implementation decision: Go MCP client
+
+Phase 1 pins `github.com/modelcontextprotocol/go-sdk` at `v1.7.0`. Its
+Streamable HTTP client supports stateless servers, `tools/list`, structured
+tool output, caller-supplied HTTP clients and disabled transport retries. An
+in-process integration test proves that Australis can initialize a stateless
+server and retrieve both input and output schemas without network access.
+
+Australis sets `MaxRetries: -1`; retry policy remains in the adapter rather
+than being multiplied by the SDK transport. This closes the stack and SDK
+spike. A protocol-only client is not justified.

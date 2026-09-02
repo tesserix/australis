@@ -49,6 +49,14 @@ that the pieces are pinned rather than wired.
 | 1.11 | `Deployment` + KEDA `ScaledObject`, min 1 / max 5 (tenancy §8) | connector scales on in-flight requests; no Knative, no scale-to-zero |
 | 1.12 | Scope filter applied **after** the resolution cache (tenancy §7) | warm tenant cache + narrower-scope subject → narrower tool list |
 
+Current checkpoint (2026-09-03): 1.1 and 1.2 are implemented; 1.3 has live
+`tools/list` discovery but not Registry resolution or invocation; 1.4 has
+canonical fingerprinting and V5–V8 validation but not Registry signature and
+digest checks V1–V4; 1.5 is implemented. The generated Registry object carries
+the output fingerprint but not the output schema, so V5 is evaluated against
+the live `tools/list` contract during activation, then its fingerprint is
+compared with the pinned Registry/config value.
+
 **1.8 is not optional and does not move to a later phase.** It is the mitigation
 for the one genuine cost of the monorepo decision (ADR-0001, "the residual risk
 worth naming"): a connector whose product schema moved underneath it returns
