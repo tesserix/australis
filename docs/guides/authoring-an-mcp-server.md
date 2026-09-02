@@ -13,10 +13,17 @@ background in the [HLD](../design/mcp-hld.md).
 code**, not hand-written. Hand-editing the generated manifest breaks the schema
 fingerprints that Australis pins against, and your server stops resolving.
 
-**Your server lives in your repo, not in `australis`.** It reads your database
-through your schema with your auth model on your release cycle. Putting it in
-the engine repo makes every schema change an engine change. The only servers in
-`australis` are the ones over Australis's own data (ADR-0001 D5).
+**Your server lives in `australis/servers/`, but you still own it.** All
+connectors are built and published from one repo (ADR-0001), and
+`servers/<product>/**` carries your team's CODEOWNERS entry. Co-locating the code
+does not transfer the domain knowledge in it — the person who knows that
+`daily_log_summary` must exclude soft-deleted entries still reviews changes to
+it.
+
+**Your server is still its own build unit.** Own lockfile, own image, own tag,
+own credential, own deployment. CI is path-filtered: your change rebuilds your
+server and nothing else. Sharing a repository never means sharing a failure
+domain.
 
 ---
 
@@ -24,10 +31,10 @@ the engine repo makes every schema change an engine change. The only servers in
 
 ### 1. Scaffold
 
-In *your* product repo:
+In the `australis` repo:
 
 ```bash
-mkdir -p mcp/<product>-<domain> && cd mcp/<product>-<domain>
+mkdir -p servers/<product>/<domain> && cd servers/<product>/<domain>
 uv init && uv add 'tesserix-mcp-runtime[manifest]'
 ```
 
@@ -72,6 +79,7 @@ Non-negotiables, and why each one exists:
 | --- | --- |
 | Closed input **and** output models (`extra: forbid`) | Australis cannot cite an untyped blob; an open schema fails validation rule V5 |
 | Identity and tenant from `CallContext` only | a `user_id` input parameter is a cross-tenant escape hatch; resolution rejects it (V8) |
+| Scope every query by `ctx.subject` | the runtime proves *who is calling*; nothing but your repository layer can scope *which rows* ([tenancy §6](../design/tenancy-and-identity.md)) |
 | Read-only effects in v1 | ADR-0001 D6 — assist and guide, the product executes |
 | Return something citable | Australis attaches `source_locator` to the citation, per PRD §12 |
 | **p99 under 400 ms** | the engine's latency budget; see "Performance" below |
@@ -92,9 +100,10 @@ Path("mcpserver.json").write_bytes(compiled.registry_manifest)
 print(compiled.server_digest, compiled.registry_digest)   # keep these
 ```
 
-Run this in CI and commit the outputs. Reviewers should see manifest diffs in
-the same PR as the code that caused them — that is the whole point of generating
-rather than hand-writing.
+Run this in CI and commit the outputs; CI check 4 fails the build if the
+committed manifests do not match a fresh compile. Reviewers should see manifest
+diffs in the same PR as the code that caused them — that is the whole point of
+generating rather than hand-writing.
 
 The resulting Registry envelope:
 
@@ -227,6 +236,13 @@ quality regression, so alert on your own p99.
 - [ ] Manifests generated in CI and committed alongside the code change
 - [ ] p99 measured and under 400 ms
 - [ ] Conformance tests green (`tesserix-mcp-runtime` testkit, no network)
+- [ ] CODEOWNERS entry exists for `servers/<product>/<domain>/`
+- [ ] Contract test added, so the nightly job catches drift against your staging API
+- [ ] Every query scoped by `ctx.subject` at **one** repository choke point
+- [ ] Test: two subjects, same tenant, same tool → no cross-user rows
+- [ ] Postgres RLS enabled on the tables you read, where the product supports it
+- [ ] Own ServiceAccount, and a DB credential scoped to this domain's tables only
+- [ ] `ScaledObject` min 1 / max 5, or min 2 with the reason written down
 
 ---
 
@@ -239,3 +255,19 @@ quality regression, so alert on your own p99.
 | Answers silently lose live data | tool exceeding 400 ms | pre-materialise; check your own p99 |
 | `activation_contract_invalid` | route not reconciled yet | check GitOps sync; publication is not activation |
 | Result never cited | output schema open, or no citable locator | close the model; return `source_locator` |
+
+
+---
+
+## One thing the nightly job protects you from
+
+Your connector lives in `australis`, so your product's own test suite does not
+know it exists. If your schema moves — a column renamed, a soft-delete flag
+added, an enum extended — nothing in your CI will notice, and the connector will
+keep returning results that *look* fine.
+
+The nightly contract-test job runs your connector against your staging API and
+opens an issue on divergence. It is the mitigation for the single real cost of
+the monorepo arrangement (ADR-0001, "the residual risk worth naming"). Add a
+contract test when you add a tool, and do not disable the job when it is noisy —
+a noisy contract test is usually telling you something true.

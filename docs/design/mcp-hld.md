@@ -5,19 +5,21 @@
 - Scope: how a tenant's live/structured knowledge (PRD §6.1) reaches a grounded
   answer. Document-KB ingestion and retrieval are out of scope except where the
   two paths meet.
-- Diagram: [`../diagrams/australis-mcp.drawio`](../diagrams/australis-mcp.drawio), pages 1–3
+- Diagram: [`../diagrams/australis-architecture.drawio`](../diagrams/australis-architecture.drawio), pages 1–3
 
 ---
 
 ## 1. The one-paragraph version
 
-A product that wants an Australis assistant writes an MCP server over its own
-data, compiles it to a manifest, and publishes it to the Agentic Registry.
-Australis discovers that server by capability, pins it by digest, and calls its
-tools through AgentGateway during retrieval. The Registry is a catalog and is
-never on the request path; the gateway is the request path and is never the
-authoriser; the MCP runtime authorises every call default-deny. Nothing about
-this requires an Australis code change when tenant #2 arrives.
+Every connector in the family is written, built and published from this
+repository: a server over a product's own data, compiled to a manifest and
+published to the Agentic Registry. Australis then discovers that server by
+capability, pins it by digest, and calls its tools through AgentGateway during
+retrieval — over the wire, exactly as it would call a server it had never seen
+the source of. The Registry is a catalog and is never on the request path; the
+gateway is the request path and is never the authoriser; the MCP runtime
+authorises every call default-deny. Sharing a repository is a source-tree fact,
+not a runtime fact: each server is its own build unit, image and deployment.
 
 ## 2. System context
 
@@ -25,9 +27,10 @@ Five parties, four of which already exist.
 
 | Party | Role | Status |
 | --- | --- | --- |
-| Product (Kora, mark8ly, home-chef, HMS) | owns data; authors and operates its MCP server | exists |
+| Product (Kora, mark8ly, home-chef, HMS) | owns the data and reviews its connector (CODEOWNERS) | exists |
 | Product BFF | holds Australis credentials, circuit-breaks, degrades | per PRD §8 |
 | **Australis engine** | retrieval, grounding, citations, routing, budgets | **to build** |
+| **`servers/` — the connector fleet** | every product's MCP server, built and published here | **to build** |
 | Agentic Registry | catalog, discovery, RBAC, signing | exists |
 | AgentGateway | MCP data plane, routes, rate limits | exists |
 
@@ -35,33 +38,56 @@ See diagram page 1.
 
 ## 3. Ownership boundaries
 
-The single most important picture in this design is who owns what, because
-every other property follows from it.
+Source lives together; runtime does not. That distinction carries the whole
+design, so it is worth drawing twice.
+
+**Source tree — one repository:**
 
 ```
- kora/                    australis/                  agentic-registry/
- ├─ mcp/                  ├─ internal/core/            (catalog only —
- │   └─ kora-logs/        │   └─ ports/                  metadata + bytes,
- │       server code      │       ToolRetriever          never runtime)
- │       authoring.json   ├─ internal/adapter/mcp/
- │       server.json      │   discovery, client        agentgateway/
- └─ Kora's DB             ├─ servers/                   (routes only —
-                          │   australis-evals           never authoriser)
-                          └─ Australis's own DB
+ australis/
+ ├─ internal/core/          ports · evidence · retrieval · compose
+ │                          ↳ may NOT import servers/ or any MCP SDK
+ ├─ internal/adapter/mcp/   the ONLY package that knows MCP exists
+ ├─ internal/brain/         capture · corpus · eval · policy · promote
+ ├─ servers/                the connector fleet — one build unit each
+ │   ├─ kora/logs/              CODEOWNERS: Kora team
+ │   ├─ mark8ly/catalog/        CODEOWNERS: mark8ly team
+ │   ├─ home-chef/recipes/      CODEOWNERS: home-chef team
+ │   └─ australis-evals/        CODEOWNERS: engine team
+ └─ training/               offline only — never in the serving image
 ```
 
-- **Kora owns its server** because Kora owns the tables it reads (ADR-0001 D1).
-- **Australis owns the port, not the protocol** (D2). One directory in this
-  repo is allowed to know MCP exists.
-- **The Registry owns no runtime** and the **gateway owns no policy**. Both
-  invariants are upstream project rules, not choices we get to relax.
+**Runtime — nothing is shared:**
+
+```
+ kora-logs image ──▶ own Deployment ──▶ own SA/SPIFFE ID ──▶ own credential ──▶ Kora's DB
+ mark8ly-catalog image ──▶ own Deployment ──▶ own SA/SPIFFE ID ──▶ own credential ──▶ mark8ly's DB
+ australis engine ──▶ separate image ──▶ talks to both over the gateway
+```
+
+- **Every server is an independent build unit** — own lockfile, image, tag,
+  Registry object, credential, deployment (ADR-0001 D1). CI is path-filtered, so
+  a Kora change rebuilds Kora's server and nothing else.
+- **The product still owns its connector** through CODEOWNERS (D5).
+  Co-locating the code does not transfer the domain knowledge in it.
+- **Australis owns the port, not the protocol** (D2). One directory knows MCP
+  exists, and `internal/core/` may not import `servers/` at all — the engine is
+  a client over the wire even though the source sits in the same tree. This is
+  what keeps a monorepo from becoming a distributed monolith.
+- **The Registry owns no runtime** and the **gateway owns no policy**. Both are
+  upstream invariants, not choices we get to relax.
+
+The cost of this arrangement is stated plainly in ADR-0001: schema drift between
+a product and its connector is no longer caught by the product's own tests. The
+nightly contract-test job is the mitigation, and it ships in Phase 1.
 
 ## 4. Lifecycle of one connector
 
-Six stages. Stages 1–3 happen in the product's repo and CI; 4–6 happen in
-Australis at request time. See diagram page 2.
+Six stages. Stages 1–3 run in this repo's per-server CI; 4–6 run in the engine
+at request time. See diagram page 2.
 
-**1. Author** — the product writes tools with `tesserix-mcp-runtime`: typed
+**1. Author** — under `servers/<product>/<domain>/`, using
+`tesserix-mcp-runtime`: typed
 `callable_tool`, closed Pydantic input *and* output models, `ToolMetadata`
 carrying scopes and effects. Tenant identity arrives on a verified
 `CallContext` and is never a tool parameter.
@@ -123,8 +149,12 @@ Per ADR-0001 and PRD §11:
 - **Per-tenant bulkhead** on the MCP client: a bounded connection pool and a
   bounded in-flight count per tenant. One tenant's slow server cannot consume
   the shared pool. This is the noisy-neighbour control PRD §14 asks for.
-- Per-tenant rate limits live at the gateway; per-tenant budget caps stay in
-  the engine's meter.
+- Per-tenant rate limits live at the gateway and at the namespace waypoint;
+  per-tenant budget caps stay in the engine's meter.
+- **"Tenant" here means a product.** Inside one connector the isolation problem
+  is per end user, and it has no framework behind it — that layer, the mesh
+  identity beneath it, and the scaling and throttle profile are all in
+  [tenancy, identity and scaling](tenancy-and-identity.md).
 
 ## 7. Non-functionals
 
@@ -180,13 +210,15 @@ an HMS-class PHI deployment reachable later.
 
 Maps onto PRD §17.
 
+Full detail in [`../PLAN.md`](../PLAN.md). The connector-path summary:
+
 | Phase | Deliverable | Proves |
 | --- | --- | --- |
-| 1 | `ToolRetriever` port + MCP adapter + digest-pinned resolution; Kora's `kora-logs` server published and called | the seam works end to end |
-| 2 | Semantic tool selection, per-tenant bulkheads, degradation to document-only | the failure story is real, not aspirational |
-| 3 | Onboard home-chef with **zero** Australis commits | PRD §19 primary metric |
-| 4 | Engine-owned `australis-evals` server; eval suites over both KB kinds | groundedness is measured, not asserted |
-| later | HMS: on-prem catalog mode, self-hosted model policy, clinical guardrails | the hard tenant |
+| 1 | `ToolRetriever` port + MCP adapter + digest-pinned resolution; `servers/kora/logs/` published and called; nightly contract tests | the seam works end to end |
+| 2 | Per-tenant bulkheads, deadlines, degradation to document-only, document KB | the failure story is real, not aspirational |
+| 3 | Eval harness + onboard home-chef with **zero** engine-core commits | PRD §19 primary metric |
+| 4+ | Trace capture, T0 policy learning, adapters | see [ADR-0002](../adr/0002-shared-brain-and-learning-flywheel.md) |
+| later | HMS: on-prem catalog mode, verified server-list bundle, clinical guardrails | the hard tenant |
 
-Phase 3 is the checkpoint that matters. If it needs an engine change, stop and
-revisit ADR-0001 D2 rather than patching around it.
+Phase 3's onboarding test is the checkpoint that matters. If it needs an engine
+change, stop and revisit ADR-0001 D2 rather than patching around it.
