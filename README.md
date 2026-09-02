@@ -10,6 +10,20 @@ One engine, many tenants. Each product registers a **knowledge connector**, a **
 - **Fast-follow:** home-chef, mark8ly (ecommerce) — both production-ready.
 - **Design target (informs the architecture now, integrates later):** HMS (hospital management) — sets the hard bar for isolation, model choice (self-hosted MedGemma for PHI), clinical guardrails, and single-tenant/on-prem deployability.
 
-> **Status: design / pre-implementation.** This repo currently holds the product requirements and design record — no engine code yet. See [`docs/PRD.md`](./docs/PRD.md).
+> **Status: design / pre-implementation.** This repo currently holds the product requirements and design record — no engine code yet.
+
+## Design record
+
+| Document | What it settles |
+| --- | --- |
+| [`docs/PRD.md`](./docs/PRD.md) | product requirements, tenant contract, roadmap |
+| [`docs/adr/0001-mcp-integration-boundary.md`](./docs/adr/0001-mcp-integration-boundary.md) | who owns an MCP server, and how far Australis may bind to MCP |
+| [`docs/design/mcp-hld.md`](./docs/design/mcp-hld.md) | high-level design — context, lifecycle, failure domains |
+| [`docs/design/mcp-lld.md`](./docs/design/mcp-lld.md) | low-level design — the `ToolRetriever` port, resolution, invocation |
+| [`docs/guides/authoring-an-mcp-server.md`](./docs/guides/authoring-an-mcp-server.md) | for product teams: how to write, publish, and register a connector |
+| [`docs/diagrams/australis-mcp.drawio`](./docs/diagrams/australis-mcp.drawio) | four pages: context, lifecycle, resolution, invocation |
+| [`docs/design/orchestration-hld.md`](./docs/design/orchestration-hld.md) | global supervisor/orchestrator — context, invariants, workflows, failure domains |
+| [`docs/design/orchestration-lld.md`](./docs/design/orchestration-lld.md) | supervisor/orchestrator internals — modules, contracts, ceilings, durable path |
+| [`docs/diagrams/australis-orchestration.drawio`](./docs/diagrams/australis-orchestration.drawio) | four pages: context, task shapes, supervised hand-off, LLD |
 
 Australis is **independent of Otto** (the separate infra/SRE-automation assistant) — different audience, domain, trust model, and stack. They may share patterns, not a runtime.
