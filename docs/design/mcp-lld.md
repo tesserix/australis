@@ -27,14 +27,27 @@ australis/
 │  │  │  └─ evidence.go    tool result → []core/evidence.Evidence
 │  │  ├─ registryhttp/     thin HTTP client for agentic-registry
 │  │  └─ pgvector/
-│  └─ tenant/              config load, validation, model policy
-└─ servers/                engine-owned MCP servers (ADR-0001 D5)
-   └─ australis-evals/
+│  ├─ tenant/              config load, validation, model policy
+│  └─ brain/               capture · corpus · eval · policy · promote (ADR-0002)
+├─ servers/                the connector fleet — one build unit each (ADR-0001 D1)
+│  ├─ _shared/
+│  ├─ kora/logs/
+│  ├─ mark8ly/catalog/
+│  └─ australis-evals/
+└─ training/               offline LoRA pipelines — never in the serving image
 ```
 
-**The rule (ADR-0001 D2), enforced in CI:** nothing under `internal/core/` may
-import `internal/adapter/...` or any MCP SDK. Core defines interfaces; adapters
-point inward. See §7 for the check.
+**The rules (ADR-0001 D1, D2), enforced in CI:**
+
+1. Nothing under `internal/core/` may import `internal/adapter/...` or any MCP
+   SDK. Core defines interfaces; adapters point inward.
+2. Nothing under `internal/` may import `servers/`. The engine reaches a
+   connector over the wire through the gateway, even though its source sits in
+   the same tree. Without this, co-location silently becomes a distributed
+   monolith.
+3. No server may import another server's package. Build units stay independent.
+
+See §7 for the checks.
 
 ## 2. The port
 
@@ -141,6 +154,12 @@ In-process, not Redis. Two megabytes replicated across N pods is cheaper than a
 cache round-trip and removes a failure mode. Revisit only if the working set
 grows past a few hundred MB.
 
+**The cache holds the pre-filter descriptor set only.** Scope filtering by
+`ctx.scopes` is a pure function applied on every request, after the lookup.
+Caching the filtered list under a tenant-keyed entry would eventually serve one
+subject's tool list to another — a correctness rule, not an optimisation. See
+[tenancy-and-identity §7](tenancy-and-identity.md#7-cache-before-the-filter-never-after).
+
 ## 4. Invocation path
 
 ### 4.1 Sequence (diagram page 4)
@@ -172,6 +191,13 @@ Sized against ~5 peak RPS across all tenants (ADR-0001): 8 in-flight per tenant
 is roughly 10x headroom on a single tenant's share. When the bulkhead is full
 the call is **abandoned, not queued** — queueing converts a latency problem into
 a timeout cascade, and the answer degrades gracefully to document-only anyway.
+
+**These counters are per process, not fleet-wide.** At `maxReplicas: 5` the real
+per-tenant ceiling is `8 x 5 = 40`. Deriving the per-process limit from a desired
+global ceiling — rather than the reverse — is what keeps scale-out from silently
+weakening the noisy-neighbour guarantee. The bulkhead also covers KEDA's 30–60 s
+reaction window; see the throttle ladder in
+[tenancy-and-identity §9](tenancy-and-identity.md#9-the-throttle-ladder).
 
 ### 4.3 Deadlines and retries
 
@@ -264,13 +290,21 @@ go run ./architecture/check_layers.go
 grep -rl "modelcontextprotocol/go-sdk" --include=*.go internal/ \
   | grep -v '^internal/adapter/mcp/' | grep . && exit 1
 
-# 3. standard gates
+# 3. the engine must not import the connector fleet (ADR-0001 D1)
+grep -rn 'australis/servers/' --include=*.go internal/ | grep . && exit 1
+
+# 4. generated manifests must match a fresh compile
+./scripts/check-manifests-clean.sh
+
+# 5. standard gates
 go build ./... && go vet ./... && go test ./...
 ```
 
-Check 2 is a deliberately blunt grep. It is unambiguous, has no false negatives,
-and a reviewer can verify it by reading one line — which is the property that
-matters for an invariant this load-bearing.
+Checks 2 and 3 are deliberately blunt greps. They are unambiguous, have no false
+negatives, and a reviewer can verify each by reading one line — which is the
+property that matters for invariants this load-bearing. Check 3 is the one that
+keeps the monorepo honest; without it, the first person in a hurry imports a
+server package directly and the isolation argument in ADR-0001 stops being true.
 
 ## 8. Testing
 

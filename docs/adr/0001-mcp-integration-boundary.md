@@ -1,9 +1,9 @@
 # ADR-0001: MCP integration boundary and ownership
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-02
 - Owner: Mahesh Sangawar
-- Relates to: [PRD](../PRD.md) §5.2, §6.1, §7, §8, §11
+- Relates to: [PRD](../PRD.md) §5.2, §6.1, §7, §8, §11; [ADR-0002](0002-shared-brain-and-learning-flywheel.md)
 - Supersedes: none
 
 ## Context
@@ -77,185 +77,218 @@ should say so.
   disclosed rather than hidden. No operation in v1 requires strong consistency
   because no operation in v1 writes (see D6).
 
+### One more requirement, added after the first draft
+
+Australis is not only an engine. The stated intent is that it becomes the
+**shared brain** of the product family: the place where connector code is
+written, built and published, and — over time — where the family's assistant
+behaviour is learned and improved rather than hand-tuned per product. That
+intent changes the calculus below, because a learning system needs its training
+signal in one place, and a connector fleet is one of the things it learns from.
+
+The learning half is decided separately in
+[ADR-0002](0002-shared-brain-and-learning-flywheel.md). This ADR settles only
+where connector *code* lives and how Australis talks to it.
+
 ## Options considered
 
-**Option A — All tenant MCP servers live in `australis`.**
-One repo, one CI pipeline, one review queue, one deploy. Attractive for early
-velocity while a single person writes everything.
+**Option A — All MCP servers live in `australis`; one repo builds and publishes
+the fleet.** One place to work, one CI, one publish pipeline, one review queue,
+and the connector fleet sits next to the engine that learns from it.
 
-**Option B — MCP servers live in the repo that owns the data; Australis
-consumes them via the Registry.** Kora's server in `kora`, mark8ly's in
-`mark8ly`, HMS's in `hms`. Australis holds only servers over its *own* data.
+**Option B — MCP servers live in the repo that owns the data.** Kora's server in
+`kora`, mark8ly's in `mark8ly`. Maximum isolation, maximum coordination cost.
 
-**Option C — No MCP. Each tenant exposes a bespoke REST connector and Australis
-ships a per-tenant adapter.** Fewest moving parts today.
+**Option C — No MCP; bespoke REST connectors with per-tenant adapters.**
 
 **Option D — Each product BFF embeds its own MCP client; Australis receives
-pre-retrieved context in the request body.** Pushes retrieval to the edge.
+pre-retrieved context.**
 
 ## Decision
 
-**Option B**, with six binding rules.
+**Option A**, under a shape that keeps its risks bounded:
 
-### D1 — An MCP server is owned by the repository that owns its data
+> **Monorepo of source, polyrepo of artifacts.**
+> One repository holds every server's code, build and publish pipeline. Each
+> server is nonetheless an independent build unit, an independent image, an
+> independent Registry object, and an independent deployment. Nothing about
+> sharing a git repo is permitted to make two servers share a failure domain.
 
-A tool retriever reads a product's database through that product's schema,
-authorisation model, and release cycle. Co-locating it with the consumer makes
-every Kora schema change an Australis change, which fails the PRD's north-star
-test verbatim: *"New tenant = connector + config + evals, zero engine-core
-changes"* (§3). Under Option A that sentence cannot be true, because the
-connector **is** an engine-core change.
+That distinction is the whole decision. The velocity benefit of Option A comes
+from sharing a *workspace*; the isolation risk of Option A comes from sharing a
+*deploy*. Taking the first without the second is available, and it is what the
+seven rules below buy.
 
-Service boundaries follow data ownership. Kora owns Kora's tables; therefore
-Kora owns the MCP server over them.
+### D1 — Every MCP server is an independent build unit
+
+`servers/<product>/<domain>/` is its own project: own dependency lockfile, own
+container image, own tag, own Registry object, own `credentialRef`, own
+ServiceAccount and SPIFFE ID, own `Deployment` and `ScaledObject`. There is no
+"the Australis servers image".
+
+CI is path-filtered: a change under `servers/kora/logs/` rebuilds and
+republishes exactly that server. A Kora schema change cannot trigger a mark8ly
+redeploy, and a broken Kora build cannot block an HMS release.
+
+Shared code between servers is allowed only through `servers/_shared/`, which is
+versioned and reviewed like any library. A server importing another server's
+package is a build failure.
 
 ### D2 — Australis binds to MCP only behind the `ToolRetriever` port
 
-MCP is an adapter, not an assumption. PRD §8 already names `ToolRetriever` as
-one of the swappable ports; this ADR fixes MCP as its first and default
-implementation, not its only possible one. A tenant arriving with a plain
-signed-HTTP connector must be onboardable by writing an adapter, without the
-engine core learning about it.
+Unchanged from the first draft, and unaffected by co-location. MCP is an
+adapter, not an assumption. No `mcp` package import is permitted outside
+`internal/adapter/mcp/`, and `internal/core/` may not import `servers/` at all —
+the engine consumes servers over the wire like any other client, even though
+their source sits in the same tree. Enforced in CI, not by convention (LLD §7).
 
-No `mcp` package import is permitted outside `internal/adapter/mcp/`. This is
-enforced in CI, not by convention (see LLD §7).
+This rule is what keeps Option A from quietly becoming a distributed monolith.
 
 ### D3 — Servers are discovered through the Registry and pinned by digest
 
-Australis never holds a hardcoded MCP endpoint. It resolves a server through
-`GET /v0/search?kinds=MCPServer&view=stub`, fetches the exact object via the
-returned `fetchPath`, and pins **both** digests before use:
+Australis holds no hardcoded MCP endpoint, **including for servers built from
+this repo**. Resolution goes through `GET /v0/search` → exact fetch → verify
+signature → pin both `registry_digest` and `artifact_digest`. Resolving `latest`
+at request time is forbidden.
 
-- `registry_digest` — the signed catalog object;
-- `artifact_digest` — the wheel or image actually deployed.
-
-Resolving `latest` at request time is forbidden. A tenant's model policy and
-its tool set must be reproducible for a given config revision, or eval results
-(PRD §6.4) mean nothing.
+Co-location makes it tempting to shortcut this with an in-process call or a
+service-DNS constant. Don't. The pin is what makes a config revision
+reproducible, which is what makes an eval result — and therefore the entire
+learning loop of ADR-0002 — mean anything.
 
 ### D4 — All invocation goes through AgentGateway
 
-No direct pod-to-pod MCP calls, no `direct_access: true` in a route policy that
-Australis consumes. The gateway is where per-tenant rate limits, mTLS, and
-request identity live. Registry discovery grants **zero** authority: the
-Registry is a catalog, never a proxy and never an authoriser
-(`agentic-registry/README.md`, stated as a non-negotiable invariant). The MCP
-runtime re-authorises every tool call default-deny regardless of what discovery
-returned.
+No direct pod-to-pod MCP, no `direct_access: true`. The gateway owns per-tenant
+rate limits, mTLS and request identity. The Registry is a catalog, never a proxy
+and never an authoriser (an upstream invariant, not our choice). The MCP runtime
+re-authorises every call default-deny regardless of what discovery returned.
 
-### D5 — Engine-owned MCP servers may live in `australis`
+### D5 — Per-server CODEOWNERS
 
-D1 cuts both ways. Australis owns its own operational data — eval suites, KB
-ingestion state, per-tenant budget ledgers — and MCP servers over *those* belong
-here, under `servers/<name>/`. Expected v1 set:
-
-| Server | Purpose | Visibility |
-| --- | --- | --- |
-| `australis-evals` | run and report golden-set results | `internal` |
-| `australis-kb-admin` | inspect ingestion/index state for a tenant | `internal` |
-
-This is a small, bounded list. If it grows past roughly five servers, or if any
-entry reads a *tenant's* data rather than Australis's own, D1 has been violated
-and this ADR needs revisiting.
+`servers/kora/**` is owned by whoever owns Kora. Co-locating the code must not
+transfer ownership of the domain knowledge in it. The person who knows that
+`daily_log_summary` must exclude soft-deleted entries is the person who reviews
+changes to it, wherever the file happens to live.
 
 ### D6 — v1 tools are read-only
 
-PRD §3 non-goals: *"Not autonomous action/writes into product systems in v1 —
-assist & guide; product/user executes."* Therefore every tool Australis invokes
-declares `idempotency: not_applicable` and carries only read scopes. A tenant
-publishing a write-effect tool is rejected at config-validation time, not
-discovered at runtime.
+PRD §3: *"Not autonomous action/writes into product systems in v1 — assist &
+guide; product/user executes."* Every tool declares
+`idempotency: not_applicable` and carries only read scopes. A write-effect tool
+is rejected at config-validation time. Two-way door: when writes arrive they
+arrive with idempotency keys forwarded to the owning product API.
 
-This is a two-way door. When writes arrive, they arrive with idempotency keys
-forwarded to the owning product API — the runtime already contracts for it.
+### D7 — Deployment selection is per-server, not per-repo
+
+A single-tenant or on-prem Australis (PRD §11, HMS-class) is assembled from an
+explicit server list, not from "everything in `servers/`". Because D1 gives each
+server its own image, an HMS deployment contains HMS's servers and no others.
+This is the property that makes Option A survivable for a PHI tenant, and it
+must be verified by a test that asserts the on-prem bundle's contents, not by
+inspection.
 
 ## Consequences
 
 ### Positive
 
-- The §19 primary success metric becomes measurable. Onboarding home-chef
-  touches `home-chef` (server), the Registry (publish), and one Australis config
-  row. Zero engine commits. If that turns out to be false, the abstraction
-  leaked and we find out on tenant #2 rather than tenant #4.
-- Blast radius is per-tenant. A malformed Kora tool breaks Kora's assistant.
-  Under Option A it breaks the deploy that carries every tenant's server.
-- HMS-class isolation stays reachable. A single-tenant/on-prem Australis (PRD
-  §11) ships without any other tenant's connector code in the image — which
-  Option A makes impossible without build-time surgery.
-- Per-tenant credentials never enter this repo. Servers hold their own
-  `credentialRef` to their own secret; Australis holds none of them.
+- **One place to work.** A developer adding a connector clones one repo, runs
+  one toolchain, and follows one guide. At current team size this is the
+  dominant cost, and Option A removes it.
+- **The fleet sits next to the engine that learns from it.** Tool selection
+  quality, eval outcomes and connector schemas are all inputs to ADR-0002's
+  flywheel. Co-location makes that loop a local change rather than a
+  cross-repo negotiation.
+- **Consistency by construction.** One lint config, one manifest compiler
+  version, one conformance testkit, one publish path. Under Option B these drift
+  per repo and get discovered during an incident.
+- **Isolation preserved where it counts.** D1 and D7 keep failure domains,
+  images, credentials and deployments separate. Co-location is a source-tree
+  fact, not a runtime fact.
 
-### Negative — accepted
+### Negative — accepted, with mitigations
 
-- **More repos, more CI.** Onboarding a tenant now spans two repos and a
-  publish step. Mitigated by the authoring guide and `agentic init MCPServer`
-  scaffolding; the cost is real and is the price of the isolation above.
-- **A new failure mode: Registry unavailable.** Addressed by D3's cache and the
-  degradation table below, not eliminated.
-- **Cross-repo version skew.** A tenant can publish a tool whose schema
-  fingerprint no longer matches Australis's expectation. Detected at resolve
-  time via fingerprint comparison and surfaced as a config error, not a
-  runtime 500.
+| Risk | Mitigation | Residual |
+| --- | --- | --- |
+| One repo carries every tenant's connector | D1 per-server build units; D7 per-server deployment selection | source-tree exposure: anyone with repo read sees every tenant's schema shape |
+| Engine and connectors drift into a distributed monolith | D2 CI-enforced import ban, both directions | needs the check to actually run; it is in the required set |
+| Blast radius of a bad shared library | `servers/_shared/` versioned and reviewed as a library | a `_shared` bug can reach every server — keep it small, or empty |
+| Ownership dilution | D5 per-server CODEOWNERS | review latency when the owning team is busy |
+| **Schema drift is detected late** | contract tests in this repo, run nightly against each product's staging API | **this is the real cost of Option A** — see below |
+
+**The residual risk worth naming.** Under Option B a Kora schema change and its
+connector change are one commit in one repo, so the product's own tests catch
+drift. Under Option A they are two commits in two repos, and nothing in Kora's
+CI knows `servers/kora/logs/` exists. The mitigation is a nightly contract-test
+job in this repo that runs each connector against its product's staging API and
+opens an issue on divergence. That job is not optional decoration; without it,
+Option A's failure mode is a connector that silently returns wrong data, which
+the assistant then cites confidently. Ship it in Phase 1, not Phase 3.
 
 ### Dependency tiers and failure behaviour
 
-Every dependency gets the sentence: *when X is down, the chat endpoint …*
+Unchanged by co-location. Every dependency gets the sentence: *when X is down,
+the chat endpoint …*
 
 | Dependency | Tier | When it is down |
 | --- | --- | --- |
-| Agentic Registry | **degradable** | serve from the identity-scoped resolution cache; refuse only if the cache is cold for that tenant, with `code=tool_retriever_unavailable` |
-| AgentGateway | **critical (per tenant)** | that tenant's tool-KB answers fail; document-KB answers still work; response degrades to document-only with an explicit "live data unavailable" note |
-| A tenant's MCP server | **degradable** | same as above, scoped to one tenant — bulkheaded connection pool means it cannot starve others |
+| Agentic Registry | **degradable** | serve from the identity-scoped resolution cache; refuse only if cold for that tenant, `code=tool_retriever_unavailable` |
+| AgentGateway | **critical (per tenant)** | that tenant's tool-KB answers fail; document-KB answers still work; degrade to document-only with disclosure |
+| A tenant's MCP server | **degradable** | same, scoped to one tenant — bulkheaded pool means it cannot starve others |
 | Postgres + pgvector | **critical** | document retrieval fails; chat returns 503 |
 | Model provider | **degradable** | model router falls back per tenant policy (PRD §10) |
-| Australis itself | **optional to the host product** | product BFF circuit-breaks, product works without the assistant (PRD §5.3) |
+| Australis itself | **optional to the host product** | product BFF circuit-breaks; product works without the assistant (PRD §5.3) |
 
-The rule that makes this hold: the tool-KB path and the document-KB path fail
-independently. Neither is allowed to be in the other's synchronous critical
-section.
+The tool-KB path and the document-KB path fail independently. Neither is
+allowed to be in the other's synchronous critical section.
 
 ### Cost
 
-Marginal. Discovery is cached, so steady-state Registry QPS is near zero and it
-adds no meaningful GCP spend. Each tenant MCP server is one small Knative
-service scaling to zero between requests — at 5 peak RPS across all tenants,
-this is a rounding error against model inference cost, which dominates the
-per-answer budget by two or more orders of magnitude. Per-tenant budget
-metering (PRD §7) meters model spend; tool-call spend does not need its own
-meter in v1.
+Marginal, and slightly lower than Option B. Discovery is cached, so steady-state
+Registry QPS is near zero. Each server is one `Deployment` held at min 1 replica
+and capped at 5 (see [tenancy-and-identity](../design/tenancy-and-identity.md)
+§8); at ~5 peak RPS across all tenants the idle floor is a rounding error against
+model inference, which dominates per-answer cost by two or more orders of
+magnitude. Scale-to-zero would save that rounding error and spend a cold start
+out of a 400 ms tool budget that is a hard contract — the wrong trade. One CI configuration instead of four is a real saving in
+maintenance time, which at current team size is the scarcer resource.
 
 ### Migration and rollback
 
-There is nothing to migrate — Australis is pre-implementation. The rollback
-path for any individual server is GitOps revert of the gateway route plus
-Registry `PATCH .../status` to `deprecated`; the previous immutable version
-stays resolvable until telemetry confirms no callers. Retiring a route before
-callers drain is the one irreversible mistake here, so deprecate-observe-retire
-is mandatory, never delete-in-place.
+Nothing to migrate — Australis is pre-implementation. Per-server rollback is
+GitOps revert of that server's route plus a Registry `PATCH .../status` to
+`deprecated`; the previous immutable version stays resolvable until telemetry
+confirms no callers. Deprecate → observe → retire, never delete-in-place.
+
+If Option A turns out badly, the exit is cheap **because of D1**: a server that
+is already an independent build unit with its own image and its own CODEOWNERS
+moves to the product repo by `git filter-repo` and a CI file. That reversibility
+is the reason D1 is a rule rather than a suggestion.
 
 ## Options rejected, and why
 
-- **Option A (monorepo of all MCP servers in `australis`)** — makes PRD §3's
-  north-star test unsatisfiable by construction, couples every tenant's release
-  to the engine's, and puts four tenants' credentials and schemas in one blast
-  radius. Rejected on the primary success metric.
-- **Option C (bespoke REST connectors)** — cheaper for tenant #1 and more
-  expensive for every tenant after. Forfeits the existing runtime's tool
-  policy, bounded execution, tenant bulkheads, and manifest supply chain, all
-  of which would have to be rebuilt inside Australis. Rejected as a false
-  economy.
+- **Option B (server per product repo)** — maximum isolation, but it splits the
+  connector fleet away from the engine that is meant to learn from it
+  (ADR-0002), multiplies toolchain drift by tenant count, and taxes every
+  connector change with cross-repo coordination at a team size that cannot
+  afford it. Its isolation advantages are recoverable under Option A via D1/D7;
+  its coordination cost is not recoverable under Option B. Rejected.
+- **Option C (bespoke REST connectors)** — forfeits the existing runtime's tool
+  policy, bounded execution, tenant bulkheads and manifest supply chain, all of
+  which would be rebuilt inside Australis. Rejected as a false economy.
 - **Option D (BFF-side retrieval)** — moves grounding out of the engine, so
   citation discipline and confidence gating (PRD §12) become each product's
-  problem to reimplement. Directly contradicts §5.6, "config over code for
-  domain specifics". Rejected.
+  problem to reimplement, and the flywheel loses its central observation point.
+  Contradicts PRD §5.6. Rejected.
 
 ## Open items this ADR does not close
 
-- **Stack confirmation.** PRD §20 still lists Go as proposed. The LLD is
-  written in Go against `github.com/modelcontextprotocol/go-sdk`; the SDK's
-  maturity for a client-side consumer must be verified before Phase 1, and the
-  version pinned in a follow-up ADR.
+- **Stack confirmation.** PRD §20 still lists Go as proposed. The LLD is written
+  in Go against `github.com/modelcontextprotocol/go-sdk`; that SDK's client-side
+  maturity needs a spike and a pinned version before Phase 1. Servers themselves
+  are Python on `tesserix-mcp-runtime`, which is settled.
 - **Tenant config surface.** Config-as-code versus admin API (PRD §20) is
   unresolved; the LLD assumes config-as-code and marks the assumption inline.
 - **HMS on-prem Registry.** A single-tenant deployment with no reachable shared
   Registry needs a local catalog mode. Deferred with HMS, per PRD §4.
+- **What the brain learns and from whose data.** Decided in
+  [ADR-0002](0002-shared-brain-and-learning-flywheel.md).

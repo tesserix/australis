@@ -148,7 +148,7 @@ Beyond request/response, Australis supports **proactive digests** reusing the sa
 ## 15. Tech Stack (proposed)
 
 - **Language:** Go 1.26 (reuses Kora's `ai` package — provider router, budget meter, cache, resolver; one language across the family, team fluency, fast to ship). Python/LangGraph was considered and set aside: no inherited Python code, and the agent complexity here (grounded RAG + tool-calling + budget + digests) doesn't require it. Revisit only if deep multi-agent reasoning becomes a near-term requirement.
-- **Runtime/deploy:** GCP — Knative (shared multi-tenant), plus a single-tenant/on-prem deployable image (HMS).
+- **Runtime/deploy:** GCP/GKE — standard `Deployment` + **KEDA** (min 1, max 5 per workload; no Knative, no scale-to-zero), under **Istio ambient** with a waypoint per product namespace; plus a single-tenant/on-prem deployable image (HMS) that assumes no mesh and no autoscaler. See [tenancy, identity and scaling](design/tenancy-and-identity.md).
 - **Datastore:** Postgres 15 + **pgvector** (HNSW), per-tenant namespaces; object store for documents; **Redis** for cache.
 - **LLM providers:** Gemini (default), OpenAI-compatible (NVIDIA/Groq/self-hosted), Vertex-hosted open weights (MedGemma/Gemma). Reranker: pluggable.
 - **Transport:** HTTP + SSE; per-product BFF integration.

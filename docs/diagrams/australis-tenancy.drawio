@@ -1,0 +1,162 @@
+<mxfile host="app.diagrams.net" modified="2026-09-02T00:00:00.000Z" agent="Australis" version="24.7.17" type="device">
+
+  <diagram name="01 Five Isolation Layers" id="layers">
+    <mxGraphModel dx="1400" dy="900" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" /><mxCell id="1" parent="0" />
+
+        <mxCell id="t" value="Five default-deny layers — none substitutes for another" style="text;html=1;fontSize=20;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="40" y="30" width="900" height="30" as="geometry" /></mxCell>
+
+        <mxCell id="h1" value="Layer" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="90" width="220" height="34" as="geometry" /></mxCell>
+        <mxCell id="h2" value="Answers the question" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="260" y="90" width="330" height="34" as="geometry" /></mxCell>
+        <mxCell id="h3" value="Mechanism" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="590" y="90" width="400" height="34" as="geometry" /></mxCell>
+        <mxCell id="h4" value="Fails closed by" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="990" y="90" width="330" height="34" as="geometry" /></mxCell>
+
+        <mxCell id="l0a" value="L0 · mesh transport" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="124" width="220" height="60" as="geometry" /></mxCell>
+        <mxCell id="l0b" value="is this encrypted, and&#10;between which workloads?" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1"><mxGeometry x="260" y="124" width="330" height="60" as="geometry" /></mxCell>
+        <mxCell id="l0c" value="Istio ambient · ztunnel · SPIFFE ID per ServiceAccount" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;align=left;spacing=8;" vertex="1" parent="1"><mxGeometry x="590" y="124" width="400" height="60" as="geometry" /></mxCell>
+        <mxCell id="l0d" value="PeerAuthentication STRICT — no plaintext peer" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;align=left;spacing=8;" vertex="1" parent="1"><mxGeometry x="990" y="124" width="330" height="60" as="geometry" /></mxCell>
+
+        <mxCell id="l1a" value="L1 · mesh authz" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="184" width="220" height="60" as="geometry" /></mxCell>
+        <mxCell id="l1b" value="which WORKLOAD may&#10;reach this path?" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1"><mxGeometry x="260" y="184" width="330" height="60" as="geometry" /></mxCell>
+        <mxCell id="l1c" value="waypoint AuthorizationPolicy on source principal:&#10;cluster.local/ns/australis-system/sa/agentgateway" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;align=left;spacing=8;" vertex="1" parent="1"><mxGeometry x="590" y="184" width="400" height="60" as="geometry" /></mxCell>
+        <mxCell id="l1d" value="namespace-wide deny-all default" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;align=left;spacing=8;" vertex="1" parent="1"><mxGeometry x="990" y="184" width="330" height="60" as="geometry" /></mxCell>
+
+        <mxCell id="l2a" value="L2 · identity" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="244" width="220" height="66" as="geometry" /></mxCell>
+        <mxCell id="l2b" value="which TENANT, which SUBJECT,&#10;which SCOPES?" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1"><mxGeometry x="260" y="244" width="330" height="66" as="geometry" /></mxCell>
+        <mxCell id="l2c" value="GatewayJWTContextProvider · JWKS · fixed issuer,&#10;audience, kid, alg (RS256/ES256/EdDSA only)&#10;runs BEFORE MCP body parsing" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacing=8;" vertex="1" parent="1"><mxGeometry x="590" y="244" width="400" height="66" as="geometry" /></mxCell>
+        <mxCell id="l2d" value="no valid token → no CallContext.&#10;Headers and _meta may confirm identity,&#10;never create it." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacing=8;" vertex="1" parent="1"><mxGeometry x="990" y="244" width="330" height="66" as="geometry" /></mxCell>
+
+        <mxCell id="l3a" value="L3 · authorisation" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="310" width="220" height="72" as="geometry" /></mxCell>
+        <mxCell id="l3b" value="which TOOL may this&#10;identity invoke?" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1"><mxGeometry x="260" y="310" width="330" height="72" as="geometry" /></mxCell>
+        <mxCell id="l3c" value="ToolPolicy — default deny, rules bound to&#10;reviewed_fingerprint, allowed_scopes per rule" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacing=8;" vertex="1" parent="1"><mxGeometry x="590" y="310" width="400" height="72" as="geometry" /></mxCell>
+        <mxCell id="l3d" value="catalog tool with no rule → denied&#10;rule with no state → experimental, not invocable&#10;schema changed → fingerprint stale → not invocable" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacing=8;" vertex="1" parent="1"><mxGeometry x="990" y="310" width="330" height="72" as="geometry" /></mxCell>
+
+        <mxCell id="l4a" value="L4 · data" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="382" width="220" height="72" as="geometry" /></mxCell>
+        <mxCell id="l4b" value="which ROWS may this&#10;subject read?" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1"><mxGeometry x="260" y="382" width="330" height="72" as="geometry" /></mxCell>
+        <mxCell id="l4c" value="repository constructed WITH ctx.subject&#10;+ Postgres RLS where available&#10;+ least-privilege credential per connector" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;align=left;spacing=8;" vertex="1" parent="1"><mxGeometry x="590" y="382" width="400" height="72" as="geometry" /></mxCell>
+        <mxCell id="l4d" value="NOTHING. This layer has no framework&#10;behind it — it is the connector author's job,&#10;and it is where leaks actually happen." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;align=left;spacing=8;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="990" y="382" width="330" height="72" as="geometry" /></mxCell>
+
+        <mxCell id="key" value="The load-bearing distinction&#10;&#10;The mesh authenticates WORKLOADS, not USERS.&#10;&#10;spiffe://cluster.local/ns/australis-system/sa/agentgateway&#10;proves a particular pod is calling. It cannot know whether that call&#10;is on behalf of the Kora tenant or of user 4471 — the tenant is a claim&#10;inside a token the mesh is merely forwarding.&#10;&#10;L1 and L2 are therefore not alternatives. Both are required." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=12;verticalAlign=top;spacingTop=12;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="500" width="620" height="200" as="geometry" /></mxCell>
+
+        <mxCell id="key2" value="&quot;Tenant&quot; means two things&#10;&#10;In Australis          a tenant is a PRODUCT — Kora, mark8ly, HMS.&#10;In one connector      there is one tenant and many END USERS.&#10;&#10;Engine plane      product from product   (namespaces, tenant_id, budgets)&#10;Identity plane    claim from assertion   (gateway JWT → CallContext)&#10;Connector plane   user from user         (ctx.subject in the data layer)&#10;&#10;Conflating them yields a system that passes every tenant-isolation&#10;test and still leaks between users." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;spacing=12;verticalAlign=top;spacingTop=12;fontSize=12;" vertex="1" parent="1"><mxGeometry x="700" y="500" width="620" height="200" as="geometry" /></mxCell>
+
+        <mxCell id="onprem" value="HMS on-prem — the test of whether the layering is real&#10;&#10;L0/L1 mesh      shared cluster: ztunnel + waypoint      on-prem: ABSENT&#10;L2 identity     gateway JWT                            on-prem: UNCHANGED&#10;L3 ToolPolicy   default-deny                           on-prem: UNCHANGED&#10;L4 data         repository + RLS                       on-prem: UNCHANGED&#10;Scaling         KEDA 1–5                               on-prem: fixed replicas&#10;&#10;If any of L2–L4 required the mesh, the on-prem deployment would be a different&#10;security model wearing the same name." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;spacing=12;verticalAlign=top;spacingTop=12;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="720" width="1280" height="190" as="geometry" /></mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="02 Stateless Identity and Resolution" id="chain">
+    <mxGraphModel dx="1400" dy="900" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" /><mxCell id="1" parent="0" />
+
+        <mxCell id="t" value="How a stateless engine knows its tools" style="text;html=1;fontSize=20;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="40" y="30" width="900" height="30" as="geometry" /></mxCell>
+        <mxCell id="sub" value="It does not remember them. It re-derives them every request from three durable stores." style="text;html=1;fontSize=13;fontColor=#666666;" vertex="1" parent="1"><mxGeometry x="40" y="60" width="900" height="24" as="geometry" /></mxCell>
+
+        <mxCell id="s1" value="1 · request arrives with gateway JWT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;align=left;spacing=10;" vertex="1" parent="1"><mxGeometry x="40" y="110" width="520" height="44" as="geometry" /></mxCell>
+        <mxCell id="s2" value="2 · verify against JWKS → tenant_id, subject, scopes&#10;      (immutable CallContext; before MCP body parsing)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;align=left;spacing=10;" vertex="1" parent="1"><mxGeometry x="40" y="164" width="520" height="52" as="geometry" /></mxCell>
+        <mxCell id="s3" value="3 · load tenant config @ revision R&#10;      → which connectors, by PINNED DIGEST" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacing=10;" vertex="1" parent="1"><mxGeometry x="40" y="226" width="520" height="52" as="geometry" /></mxCell>
+        <mxCell id="s4" value="4 · resolve digests against the Registry&#10;      → manifests → tool descriptors" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacing=10;" vertex="1" parent="1"><mxGeometry x="40" y="288" width="520" height="52" as="geometry" /></mxCell>
+        <mxCell id="s5" value="5 · filter by ctx.scopes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;align=left;spacing=10;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="40" y="350" width="520" height="44" as="geometry" /></mxCell>
+        <mxCell id="s6" value="6 · the tool list the model actually sees" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;align=left;spacing=10;" vertex="1" parent="1"><mxGeometry x="40" y="404" width="520" height="44" as="geometry" /></mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;" edge="1" parent="1" source="s1" target="s2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;" edge="1" parent="1" source="s2" target="s3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;" edge="1" parent="1" source="s3" target="s4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;" edge="1" parent="1" source="s4" target="s5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;" edge="1" parent="1" source="s5" target="s6"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="cbrace" value="CACHED&#10;&#10;per tenant&#10;LRU 500&#10;TTL 15m soft&#10;24h hard&#10;&#10;key:&#10;(tenant_id,&#10;config_revision)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;dashed=1;align=center;fontSize=11;verticalAlign=middle;" vertex="1" parent="1"><mxGeometry x="580" y="226" width="150" height="114" as="geometry" /></mxCell>
+        <mxCell id="fbrace" value="NEVER CACHED&#10;&#10;per subject&#10;pure function&#10;every request" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;dashed=1;align=center;fontSize=11;" vertex="1" parent="1"><mxGeometry x="580" y="350" width="150" height="94" as="geometry" /></mxCell>
+
+        <mxCell id="trap" value="The trap&#10;&#10;Cache BEFORE the filter, never after.&#10;&#10;If the post-filter list is cached under a tenant-keyed entry, an&#10;admin's warm entry eventually serves a patient the admin's tool&#10;list. The expensive step (fetch and parse manifests) is per-tenant&#10;and cacheable; the scope filter is per-subject and is not.&#10;&#10;This is a correctness rule, not an optimisation." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacing=12;verticalAlign=top;spacingTop=12;fontSize=12;" vertex="1" parent="1"><mxGeometry x="780" y="110" width="560" height="190" as="geometry" /></mxCell>
+
+        <mxCell id="stores" value="The three durable stores — the engine's &quot;memory&quot;&#10;&#10;1 · tenant config       which connectors this tenant has&#10;2 · the Registry        what each exposes — content-addressed, so a&#10;                        digest always resolves to identical bytes&#10;3 · connector DBs       the product's own data&#10;&#10;Statelessness means any replica can rebuild the full picture from&#10;these three. A cold replica differs from a warm one in LATENCY ONLY,&#10;never in answers — which is exactly what makes horizontal scaling safe." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=12;verticalAlign=top;spacingTop=12;fontSize=12;" vertex="1" parent="1"><mxGeometry x="780" y="320" width="560" height="220" as="geometry" /></mxCell>
+
+        <mxCell id="v8" value="Why the model can never name whose data it wants&#10;&#10;LLD validation V8 rejects, at resolution time, any tool whose input schema declares an&#10;identity-shaped property. Tenant and subject come from the verified token and from&#10;nowhere else — never from a tool argument, never from a header, never from MCP _meta.&#10;&#10;A violating tool cannot be published into a tenant's set at all, so this is not a runtime check&#10;that a clever prompt might slip past." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;spacing=12;verticalAlign=top;spacingTop=12;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="500" width="1300" height="150" as="geometry" /></mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="03 Deployment Topology and Scaling" id="topology">
+    <mxGraphModel dx="1400" dy="900" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1700" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" /><mxCell id="1" parent="0" />
+
+        <mxCell id="t" value="Deployment topology — Istio ambient, one namespace per product" style="text;html=1;fontSize=20;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="40" y="30" width="1000" height="30" as="geometry" /></mxCell>
+        <mxCell id="sub" value="No Knative. Standard Deployment + KEDA ScaledObject, reconciled by ArgoCD from tesserix-k8s." style="text;html=1;fontSize=13;fontColor=#666666;" vertex="1" parent="1"><mxGeometry x="40" y="60" width="1000" height="24" as="geometry" /></mxCell>
+
+        <mxCell id="nsys" value="namespace: australis-system" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;spacingTop=8;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="110" width="380" height="300" as="geometry" /></mxCell>
+        <mxCell id="gw" value="agentgateway&#10;sa/agentgateway&#10;min 2 · max 5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="70" y="150" width="150" height="70" as="geometry" /></mxCell>
+        <mxCell id="eng" value="australis engine&#10;sa/australis-engine&#10;min 2 · max 5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="240" y="150" width="150" height="70" as="geometry" /></mxCell>
+        <mxCell id="engnote" value="engine is min 2, not 1:&#10;at min 1 a rolling update or node&#10;drain is a full outage for a service&#10;with a 99.5% monthly SLO" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=left;spacing=8;" vertex="1" parent="1"><mxGeometry x="70" y="240" width="320" height="70" as="geometry" /></mxCell>
+        <mxCell id="pgnote" value="Postgres + pgvector (HA, PITR) · Redis · object store" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;" vertex="1" parent="1"><mxGeometry x="70" y="325" width="320" height="40" as="geometry" /></mxCell>
+
+        <mxCell id="nkora" value="namespace: australis-kora" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;spacingTop=8;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="500" y="110" width="360" height="300" as="geometry" /></mxCell>
+        <mxCell id="wpk" value="waypoint&#10;AuthorizationPolicy: source principal must be&#10;.../sa/agentgateway · POST · /mcp/*&#10;else DENY (namespace default deny-all)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;align=left;spacing=8;" vertex="1" parent="1"><mxGeometry x="525" y="145" width="310" height="70" as="geometry" /></mxCell>
+        <mxCell id="k1" value="kora-logs&#10;sa/kora-logs&#10;min 1 · max 5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1"><mxGeometry x="525" y="230" width="145" height="65" as="geometry" /></mxCell>
+        <mxCell id="k2" value="kora-recipes&#10;sa/kora-recipes&#10;min 1 · max 5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1"><mxGeometry x="690" y="230" width="145" height="65" as="geometry" /></mxCell>
+        <mxCell id="kcred" value="one ServiceAccount AND one least-privilege DB&#10;credential per connector — transport identity and&#10;data identity name the same unit" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=left;spacing=8;" vertex="1" parent="1"><mxGeometry x="525" y="305" width="310" height="60" as="geometry" /></mxCell>
+
+        <mxCell id="nm8" value="namespace: australis-mark8ly" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;verticalAlign=top;spacingTop=8;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="940" y="110" width="330" height="140" as="geometry" /></mxCell>
+        <mxCell id="wpm" value="waypoint · deny-all default" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1"><mxGeometry x="965" y="145" width="280" height="35" as="geometry" /></mxCell>
+        <mxCell id="m1" value="mark8ly-catalog · sa/mark8ly-catalog · min 1 · max 5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1"><mxGeometry x="965" y="190" width="280" height="40" as="geometry" /></mxCell>
+
+        <mxCell id="nhc" value="namespace: australis-home-chef" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;verticalAlign=top;spacingTop=8;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="940" y="270" width="330" height="140" as="geometry" /></mxCell>
+        <mxCell id="wph" value="waypoint · deny-all default" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1"><mxGeometry x="965" y="305" width="280" height="35" as="geometry" /></mxCell>
+        <mxCell id="h1" value="home-chef-recipes · sa/... · min 1 · max 5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1"><mxGeometry x="965" y="350" width="280" height="40" as="geometry" /></mxCell>
+
+        <mxCell id="ztun" value="ztunnel (L4, per node) — mTLS everywhere, SPIFFE identity per ServiceAccount, PeerAuthentication STRICT" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="40" y="425" width="1230" height="36" as="geometry" /></mxCell>
+
+        <mxCell id="eg1" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;strokeColor=#6c8ebf;" edge="1" parent="1" source="gw" target="wpk"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="eg2" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;strokeColor=#6c8ebf;" edge="1" parent="1" source="gw" target="wpm"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="eg3" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;strokeColor=#6c8ebf;" edge="1" parent="1" source="gw" target="wph"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="keda" value="Scaling — KEDA, not a CPU-target HPA&#10;&#10;Workload                     min   max   scale on&#10;MCP connector (every one)      1     5    in-flight MCP requests per pod&#10;Australis engine               2     5    in-flight requests per pod&#10;Trace capture worker           1     3    buffer depth&#10;&#10;Connectors are IO-bound — they wait on Postgres. Under load, latency&#10;climbs while CPU sits flat at 10–20%, so a CPU-target HPA would never&#10;scale the thing that is actually hurting. KEDA generates an HPA underneath,&#10;so this is HPA PLUS usable triggers, not an alternative to it.&#10;&#10;  sum(mcp_inflight_requests{service=&quot;kora-logs&quot;})&#10;    / count(up{service=&quot;kora-logs&quot;})        target: 6&#10;&#10;Scale up fast (0s stabilisation), scale down slow (300s) — adding a pod is&#10;cheap, flapping under a diurnal peak is not." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacing=12;verticalAlign=top;spacingTop=12;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="485" width="620" height="330" as="geometry" /></mxCell>
+
+        <mxCell id="minone" value="min 1 has a consequence — name it rather than gloss it&#10;&#10;With minReplicas: 1, a node drain or rolling update leaves that connector&#10;briefly unreachable. A PodDisruptionBudget cannot fix this: minAvailable: 1&#10;against a single replica blocks eviction entirely, breaking node maintenance&#10;instead of preserving availability.&#10;&#10;That is acceptable because the engine already degrades honestly — the tool&#10;branch goes down, the answer degrades to document-only with explicit&#10;disclosure, and the response is a 200, never a 500.&#10;&#10;Any connector for which that is NOT acceptable must be set to min 2, and say&#10;why in its servers/&lt;product&gt;/&lt;domain&gt;/README.md.&#10;&#10;Sizing: peak is ~5 MCP calls/sec across the ENTIRE fleet. At a 400 ms p99 tool&#10;budget that is ~2 concurrent calls spread over dozens of connectors, so max 5&#10;is very large headroom — the correct posture for a ceiling. It exists to absorb&#10;a bad afternoon, not to be occupied." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=12;verticalAlign=top;spacingTop=12;fontSize=12;" vertex="1" parent="1"><mxGeometry x="690" y="485" width="580" height="330" as="geometry" /></mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="04 Throttle Ladder" id="throttle">
+    <mxGraphModel dx="1400" dy="900" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" /><mxCell id="1" parent="0" />
+
+        <mxCell id="t" value="The throttle ladder — four rungs, and none of them ends in a 500" style="text;html=1;fontSize=20;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="40" y="30" width="1000" height="30" as="geometry" /></mxCell>
+        <mxCell id="sub" value="Each rung exists because the one below it reacts on a different timescale." style="text;html=1;fontSize=13;fontColor=#666666;" vertex="1" parent="1"><mxGeometry x="40" y="60" width="1000" height="24" as="geometry" /></mxCell>
+
+        <mxCell id="r1" value="1 · Waypoint L7 per-tenant rate limit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontStyle=1;align=left;spacing=12;" vertex="1" parent="1"><mxGeometry x="40" y="110" width="440" height="56" as="geometry" /></mxCell>
+        <mxCell id="r1t" value="reacts: INSTANT" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" vertex="1" parent="1"><mxGeometry x="500" y="110" width="150" height="56" as="geometry" /></mxCell>
+        <mxCell id="r1b" value="429 at the mesh. The pod never sees the flood." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=12;align=left;spacing=10;" vertex="1" parent="1"><mxGeometry x="670" y="110" width="560" height="56" as="geometry" /></mxCell>
+
+        <mxCell id="r2" value="2 · KEDA scale-out 1 → 5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;fontStyle=1;align=left;spacing=12;" vertex="1" parent="1"><mxGeometry x="40" y="186" width="440" height="56" as="geometry" /></mxCell>
+        <mxCell id="r2t" value="reacts: 30–60 s" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" vertex="1" parent="1"><mxGeometry x="500" y="186" width="150" height="56" as="geometry" /></mxCell>
+        <mxCell id="r2b" value="More capacity. Triggered on in-flight requests per pod, not CPU." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=12;align=left;spacing=10;" vertex="1" parent="1"><mxGeometry x="670" y="186" width="560" height="56" as="geometry" /></mxCell>
+
+        <mxCell id="r3" value="3 · Per-tenant bulkhead, in-process" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;fontStyle=1;align=left;spacing=12;" vertex="1" parent="1"><mxGeometry x="40" y="262" width="440" height="56" as="geometry" /></mxCell>
+        <mxCell id="r3t" value="reacts: INSTANT" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" vertex="1" parent="1"><mxGeometry x="500" y="262" width="150" height="56" as="geometry" /></mxCell>
+        <mxCell id="r3b" value="Abandon after 50 ms — NEVER queue. Queueing converts a latency&#10;problem into a timeout cascade." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=12;align=left;spacing=10;" vertex="1" parent="1"><mxGeometry x="670" y="262" width="560" height="56" as="geometry" /></mxCell>
+
+        <mxCell id="r4" value="4 · Engine degradation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;fontStyle=1;align=left;spacing=12;" vertex="1" parent="1"><mxGeometry x="40" y="338" width="440" height="56" as="geometry" /></mxCell>
+        <mxCell id="r4t" value="reacts: INSTANT" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" vertex="1" parent="1"><mxGeometry x="500" y="338" width="150" height="56" as="geometry" /></mxCell>
+        <mxCell id="r4b" value="tool_budget_exhausted → 200 + partial answer + explicit disclosure." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontSize=12;align=left;spacing=10;" vertex="1" parent="1"><mxGeometry x="670" y="338" width="560" height="56" as="geometry" /></mxCell>
+
+        <mxCell id="ee1" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;" edge="1" parent="1" source="r1" target="r2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ee2" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;" edge="1" parent="1" source="r2" target="r3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ee3" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;" edge="1" parent="1" source="r3" target="r4"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="why" value="Why rungs 2 and 3 both exist&#10;&#10;KEDA cannot add a pod in under half a minute. The bulkhead holds the line&#10;during that window and sheds load deterministically, instead of building a&#10;queue that turns a latency problem into a timeout cascade.&#10;&#10;A tenant that overruns its share gets a degraded, honest answer — never an&#10;error, and never another tenant's latency." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=12;verticalAlign=top;spacingTop=12;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="440" width="580" height="180" as="geometry" /></mxCell>
+
+        <mxCell id="mult" value="Replicas MULTIPLY the bulkhead — read before tuning&#10;&#10;Bulkhead counters are PER PROCESS. So are the runtime's admission&#10;counters (default 16 concurrent per tenant, max 64).&#10;&#10;    effective ceiling = per-process limit  x  maxReplicas&#10;&#10;At maxInFlight 8 and maxReplicas 5 that is 40, not 8.&#10;&#10;Scaling out therefore WEAKENS the noisy-neighbour guarantee unless the&#10;per-process limit is derived from the desired global ceiling:&#10;&#10;    per-process limit = desired global ceiling / maxReplicas&#10;&#10;Every stated per-tenant ceiling must name which of the two it is." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacing=12;verticalAlign=top;spacingTop=12;fontSize=12;" vertex="1" parent="1"><mxGeometry x="650" y="440" width="580" height="270" as="geometry" /></mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+</mxfile>
