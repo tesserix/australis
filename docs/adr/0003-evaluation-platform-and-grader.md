@@ -113,12 +113,22 @@ Every run and case result is exported fail-open to Langfuse with the ADK
 screen. Langfuse and the ClickHouse cluster behind it hold **AI traces, spans,
 generations and scores and nothing else**: no application logs, no Kubernetes
 events, no node or pod metrics. Those stay in Cloud Logging and Cloud
-Monitoring, where GKE already puts them. The custom OTel → Redpanda → ClickHouse
-→ obs-ui pipeline is revived only for failure and critical debugging of AI
-traffic and for richer result representation; its `filelog`, `k8sobjects` and
-`prometheus` receivers are not revived, and the `otel` log and event tables are
-dropped when the pipeline comes back. Neither sink can fail a run: Postgres is
-the only write that blocks.
+Monitoring, where GKE already puts them.
+
+Transport (decided 2026-09-03): agents export OTLP to `otel-gateway`, which
+drops every span not marked `tesserix.signal=ai`, spools to the Redpanda topic
+`ai.traces` (RF 3, 7 day retention), and `otel-ingest` routes each product's
+spans by `service.namespace` to that product's Langfuse project with its own
+key pair. The buffer is what makes the sink optional: a Langfuse outage or a
+missing project key accumulates in Redpanda and is replayed by seeking the
+consumer group, and derived ids (D6) make the replay an upsert. The `filelog`,
+`k8sobjects` and `prometheus` receivers, the ClickHouse exporter and the
+`otel.*` log, metric and event topics are not revived. Neither sink can fail a
+run: Postgres is the only write that blocks.
+
+Langfuse v4 runs in events-only mode: `/api/public/traces` answers 404 and
+readers use the observations and metrics APIs instead. Anything that needs to
+read a trace back, the grader included, must be written against those.
 
 ### D6 — Every AI trace carries deterministic ids
 
