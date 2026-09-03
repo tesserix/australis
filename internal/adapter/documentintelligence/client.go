@@ -32,7 +32,12 @@ var (
 	jobIDPattern       = regexp.MustCompile(`^job_[A-Za-z0-9_]{1,64}$`)
 	documentIDPattern  = regexp.MustCompile(`^doc_[A-Za-z0-9_]{1,64}$`)
 	observationPattern = regexp.MustCompile(`^obs_[A-Za-z0-9_]{1,64}$`)
+	tableIDPattern     = regexp.MustCompile(`^tbl_[A-Za-z0-9_]{1,64}$`)
 	digestPattern      = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
+	codePattern        = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
+	versionPattern     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+	currencyPattern    = regexp.MustCompile(`^[A-Z]{3}$`)
+	decimalPattern     = regexp.MustCompile(`^[0-9]+(?:\.[0-9]+)?$`)
 )
 
 type Client struct {
@@ -74,6 +79,33 @@ type ValidationFailure struct {
 	Severity string `json:"severity"`
 }
 
+type TableCell struct {
+	Row        uint32     `json:"row"`
+	Column     uint32     `json:"column"`
+	Text       string     `json:"text"`
+	Confidence float64    `json:"confidence"`
+	Citations  []Citation `json:"citations"`
+}
+
+type Table struct {
+	TableID string      `json:"table_id"`
+	Cells   []TableCell `json:"cells"`
+}
+
+type Confidence struct {
+	InputQuality   float64 `json:"input_quality"`
+	OCR            float64 `json:"ocr"`
+	Classification float64 `json:"classification"`
+	Extraction     float64 `json:"extraction"`
+	Validation     float64 `json:"validation"`
+	Overall        float64 `json:"overall"`
+}
+
+type Cost struct {
+	Currency string `json:"currency"`
+	Decimal  string `json:"decimal"`
+}
+
 type ExtractResponse struct {
 	JobID               string              `json:"job_id"`
 	Status              string              `json:"status"`
@@ -81,9 +113,19 @@ type ExtractResponse struct {
 	ResultSchemaVersion string              `json:"result_schema_version,omitempty"`
 	DocumentID          string              `json:"document_id,omitempty"`
 	DocumentVersion     string              `json:"document_version,omitempty"`
+	Text                string              `json:"text,omitempty"`
+	Markdown            string              `json:"markdown,omitempty"`
 	Fields              []Field             `json:"fields,omitempty"`
+	Tables              []Table             `json:"tables,omitempty"`
+	Confidence          *Confidence         `json:"confidence,omitempty"`
+	Citations           []Citation          `json:"citations,omitempty"`
 	Warnings            []string            `json:"warnings"`
 	ValidationFailures  []ValidationFailure `json:"validation_failures"`
+	Provider            string              `json:"provider,omitempty"`
+	ModelVersion        string              `json:"model_version,omitempty"`
+	ProcessingProfile   string              `json:"processing_profile_version,omitempty"`
+	DurationMS          uint64              `json:"duration_ms,omitempty"`
+	Cost                *Cost               `json:"cost,omitempty"`
 }
 
 type apiError struct {
@@ -110,7 +152,11 @@ func NewClient(baseURL string, httpClient *http.Client) (*Client, error) {
 		return nil, fmt.Errorf("document intelligence base URL must use HTTPS")
 	}
 	parsed.Path = ""
-	return &Client{baseURL: parsed, httpClient: httpClient}, nil
+	ownedClient := *httpClient
+	ownedClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	return &Client{baseURL: parsed, httpClient: &ownedClient}, nil
 }
 
 func (c *Client) Extract(ctx context.Context, request ExtractRequest) (ExtractResponse, error) {
@@ -206,8 +252,13 @@ func (c *Client) doJSON(
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return decodeAPIError(response.StatusCode, responseBody)
 	}
-	if err := json.Unmarshal(responseBody, target); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(responseBody))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
 		return fmt.Errorf("decode document intelligence response: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return fmt.Errorf("decode document intelligence response: trailing content")
 	}
 	return nil
 }
@@ -307,25 +358,26 @@ func mapResult(status jobResponse, result documentResult) (ExtractResponse, erro
 		if err != nil {
 			return ExtractResponse{}, fmt.Errorf("encode extracted field %s: %w", name, err)
 		}
-		citations := make([]Citation, 0, len(value.Evidence))
-		for _, evidence := range value.Evidence {
-			polygon := make([][]float64, 0, len(evidence.Polygon.Points))
-			for _, point := range evidence.Polygon.Points {
-				polygon = append(polygon, []float64{point.X, point.Y})
-			}
-			citations = append(citations, Citation{
-				DocumentVersion: result.DocumentVersion,
-				Page:            evidence.Page,
-				Polygon:         polygon,
-				ObservationID:   evidence.ObservationID,
-			})
-		}
 		fields = append(fields, Field{
 			Name:       name,
 			ValueJSON:  string(encoded),
 			Confidence: value.Confidence,
-			Citations:  citations,
+			Citations:  citationsFor(result.DocumentVersion, value.Evidence),
 		})
+	}
+	tables := make([]Table, 0, len(result.Tables))
+	for _, table := range result.Tables {
+		cells := make([]TableCell, 0, len(table.Cells))
+		for _, cell := range table.Cells {
+			cells = append(cells, TableCell{
+				Row:        cell.Row,
+				Column:     cell.Column,
+				Text:       cell.Text,
+				Confidence: cell.Confidence,
+				Citations:  citationsFor(result.DocumentVersion, cell.Evidence),
+			})
+		}
+		tables = append(tables, Table{TableID: table.TableID, Cells: cells})
 	}
 	return ExtractResponse{
 		JobID:               status.JobID,
@@ -334,10 +386,37 @@ func mapResult(status jobResponse, result documentResult) (ExtractResponse, erro
 		ResultSchemaVersion: result.SchemaVersion,
 		DocumentID:          result.DocumentID,
 		DocumentVersion:     result.DocumentVersion,
+		Text:                result.Text,
+		Markdown:            result.Markdown,
 		Fields:              fields,
-		Warnings:            []string{},
-		ValidationFailures:  []ValidationFailure{},
+		Tables:              tables,
+		Confidence:          result.Confidence,
+		Citations:           citationsFor(result.DocumentVersion, result.Citations),
+		Warnings:            append([]string{}, result.Warnings...),
+		ValidationFailures:  append([]ValidationFailure{}, result.ValidationFailures...),
+		Provider:            result.Provider,
+		ModelVersion:        result.ModelVersion,
+		ProcessingProfile:   result.ProcessingProfile,
+		DurationMS:          result.DurationMS,
+		Cost:                result.Cost,
 	}, nil
+}
+
+func citationsFor(documentVersion string, evidenceItems []evidence) []Citation {
+	citations := make([]Citation, 0, len(evidenceItems))
+	for _, item := range evidenceItems {
+		points := make([][]float64, 0, len(item.Polygon.Points))
+		for _, point := range item.Polygon.Points {
+			points = append(points, []float64{point.X, point.Y})
+		}
+		citations = append(citations, Citation{
+			DocumentVersion: documentVersion,
+			Page:            item.Page,
+			Polygon:         points,
+			ObservationID:   item.ObservationID,
+		})
+	}
+	return citations
 }
 
 func validateJobResponse(response jobResponse) error {
@@ -346,6 +425,18 @@ func validateJobResponse(response jobResponse) error {
 	}
 	if _, ok := jobStatuses[response.Status]; !ok {
 		return fmt.Errorf("document intelligence returned an invalid job status")
+	}
+	if response.CreatedAt != "" {
+		if _, err := time.Parse(time.RFC3339Nano, response.CreatedAt); err != nil {
+			return fmt.Errorf("document intelligence returned an invalid creation time")
+		}
+	}
+	expectedStatusURL := "/v1/ocr/jobs/" + url.PathEscape(response.JobID)
+	if response.StatusURL != "" && response.StatusURL != expectedStatusURL {
+		return fmt.Errorf("document intelligence returned an invalid status locator")
+	}
+	if response.ResultURL != "" && response.ResultURL != expectedStatusURL+"/result" {
+		return fmt.Errorf("document intelligence returned an invalid result locator")
 	}
 	return nil
 }
@@ -367,13 +458,67 @@ func validateDocumentResult(result documentResult) error {
 		if len(field.Evidence) == 0 {
 			return fmt.Errorf("document intelligence returned a field without evidence")
 		}
-		for _, item := range field.Evidence {
-			if item.Page == 0 || !observationPattern.MatchString(item.ObservationID) || !validPolygon(item.Polygon.Points) {
-				return fmt.Errorf("document intelligence returned invalid field evidence")
+		if !validEvidence(field.Evidence) {
+			return fmt.Errorf("document intelligence returned invalid field evidence")
+		}
+	}
+	if (result.Text != "" || result.Markdown != "") && len(result.Citations) == 0 {
+		return fmt.Errorf("document intelligence returned content without evidence")
+	}
+	if !validEvidence(result.Citations) {
+		return fmt.Errorf("document intelligence returned invalid document evidence")
+	}
+	for _, table := range result.Tables {
+		if !tableIDPattern.MatchString(table.TableID) || len(table.Cells) == 0 || len(table.Cells) > 10000 {
+			return fmt.Errorf("document intelligence returned an invalid table")
+		}
+		for _, cell := range table.Cells {
+			if !validConfidence(cell.Confidence) || len(cell.Evidence) == 0 || !validEvidence(cell.Evidence) {
+				return fmt.Errorf("document intelligence returned an invalid table cell")
 			}
 		}
 	}
+	if result.Confidence != nil && !validConfidenceDimensions(*result.Confidence) {
+		return fmt.Errorf("document intelligence returned invalid confidence")
+	}
+	for _, warning := range result.Warnings {
+		if !codePattern.MatchString(warning) {
+			return fmt.Errorf("document intelligence returned an invalid warning")
+		}
+	}
+	for _, failure := range result.ValidationFailures {
+		if !codePattern.MatchString(failure.Code) || (failure.Severity != "warning" && failure.Severity != "error") {
+			return fmt.Errorf("document intelligence returned an invalid validation failure")
+		}
+	}
+	for _, version := range []string{result.Provider, result.ModelVersion, result.ProcessingProfile} {
+		if version != "" && !versionPattern.MatchString(version) {
+			return fmt.Errorf("document intelligence returned invalid processing provenance")
+		}
+	}
+	if result.Cost != nil && (!currencyPattern.MatchString(result.Cost.Currency) || !decimalPattern.MatchString(result.Cost.Decimal)) {
+		return fmt.Errorf("document intelligence returned invalid cost")
+	}
 	return nil
+}
+
+func validEvidence(items []evidence) bool {
+	for _, item := range items {
+		if item.Page == 0 || !observationPattern.MatchString(item.ObservationID) || !validPolygon(item.Polygon.Points) {
+			return false
+		}
+	}
+	return true
+}
+
+func validConfidence(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0) && value >= 0 && value <= 1
+}
+
+func validConfidenceDimensions(value Confidence) bool {
+	return validConfidence(value.InputQuality) && validConfidence(value.OCR) &&
+		validConfidence(value.Classification) && validConfidence(value.Extraction) &&
+		validConfidence(value.Validation) && validConfidence(value.Overall)
 }
 
 func validPolygon(points []point) bool {
@@ -424,20 +569,48 @@ type createJobRequest struct {
 }
 
 type jobResponse struct {
-	JobID  string `json:"job_id"`
-	Status string `json:"status"`
+	JobID     string `json:"job_id"`
+	Status    string `json:"status"`
+	CreatedAt string `json:"created_at"`
+	StatusURL string `json:"status_url"`
+	ResultURL string `json:"result_url"`
 }
 
 type documentResult struct {
-	SchemaVersion   string                    `json:"schema_version"`
-	DocumentID      string                    `json:"document_id"`
-	DocumentVersion string                    `json:"document_version"`
-	ContentTrust    string                    `json:"content_trust"`
-	Fields          map[string]extractedValue `json:"fields"`
+	SchemaVersion      string                    `json:"schema_version"`
+	DocumentID         string                    `json:"document_id"`
+	DocumentVersion    string                    `json:"document_version"`
+	ContentTrust       string                    `json:"content_trust"`
+	Text               string                    `json:"text"`
+	Markdown           string                    `json:"markdown"`
+	Fields             map[string]extractedValue `json:"fields"`
+	Tables             []documentTable           `json:"tables"`
+	Confidence         *Confidence               `json:"confidence"`
+	Citations          []evidence                `json:"citations"`
+	Warnings           []string                  `json:"warnings"`
+	ValidationFailures []ValidationFailure       `json:"validation_failures"`
+	Provider           string                    `json:"provider"`
+	ModelVersion       string                    `json:"model_version"`
+	ProcessingProfile  string                    `json:"processing_profile_version"`
+	DurationMS         uint64                    `json:"duration_ms"`
+	Cost               *Cost                     `json:"cost"`
 }
 
 type extractedValue struct {
 	Value      any        `json:"value"`
+	Confidence float64    `json:"confidence"`
+	Evidence   []evidence `json:"evidence"`
+}
+
+type documentTable struct {
+	TableID string              `json:"table_id"`
+	Cells   []documentTableCell `json:"cells"`
+}
+
+type documentTableCell struct {
+	Row        uint32     `json:"row"`
+	Column     uint32     `json:"column"`
+	Text       string     `json:"text"`
 	Confidence float64    `json:"confidence"`
 	Evidence   []evidence `json:"evidence"`
 }
