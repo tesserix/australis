@@ -78,10 +78,20 @@ service enter the same door. Scoring is the ADK `evals` package; the service
 adds durability, scheduling, a stable API and the Langfuse export. A new
 criterion is a scorer registration, never a service change.
 
-Built-in criteria: exact match, schema validity, groundedness and citation
-coverage, refusal correctness, tool sequence, rubric-judged quality, cost,
-latency, tokens. OCR adds character and word error rate, page and region
-reference accuracy, layout-kind accuracy and confidence calibration.
+Three grader kinds, each a first-class row in `eval.scores` with
+`grader_kind` and `grader_ref`, so one case can carry all three side by side:
+
+| Kind | What it is | Examples | Gate role |
+| --- | --- | --- | --- |
+| **code** | deterministic function over case, output and evidence | exact match, schema validity, groundedness, citation coverage, refusal correctness, tool sequence, cost, latency, tokens; OCR CER/WER, page and region accuracy, layout kind | always gates; cheapest, runs on every case |
+| **model** | calibrated LLM judge scoring a versioned rubric | helpfulness, clinical caution, tone, faithfulness beyond citation markers, pairwise preference | gates only above its calibration floor (D3) |
+| **human** | reviewer verdict on a rubric, through `eval.review_requests` | expert review, spot-check of flagged or disagreeing cases, calibration labels | strongest signal, scarcest; seeds judge calibration and is the D3 expert-review signal in ADR-0002 |
+
+Human review is not an afterthought: every model-judged case the judge
+flagged, every case where two graders disagree, and a fixed random sample per
+run enter the review queue. Reviews land as `human` scores and, for rubric
+cases, as calibration labels, so the judge's floor is re-measured from real
+traffic rather than a one-off labelled set.
 
 ### D3 — A judge earns the right to gate
 
