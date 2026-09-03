@@ -24,6 +24,7 @@ checkpoints worth stopping at.
 | **Decisions** | |
 | [`adr/0001-mcp-integration-boundary.md`](./docs/adr/0001-mcp-integration-boundary.md) | connectors live here, as independent build units; how far Australis may bind to MCP |
 | [`adr/0002-shared-brain-and-learning-flywheel.md`](./docs/adr/0002-shared-brain-and-learning-flywheel.md) | what "our own model" means, what may be learned across products, and what may never be |
+| [`adr/0003-evaluation-platform-and-grader.md`](./docs/adr/0003-evaluation-platform-and-grader.md) | shared eval store on global CNPG, grader service, Langfuse as eval UI |
 | **Design** | |
 | [`design/mcp-hld.md`](./docs/design/mcp-hld.md) | connector path — context, lifecycle, failure domains |
 | [`design/mcp-lld.md`](./docs/design/mcp-lld.md) | the `ToolRetriever` port, resolution, invocation, validations |
