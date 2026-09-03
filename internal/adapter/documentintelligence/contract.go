@@ -9,7 +9,7 @@ import (
 
 const (
 	ExtractDocumentInputFingerprint  = "adafd5a6492ce55b11b39a759541b65f9bd7292b69525b871474ddb612a79bee"
-	ExtractDocumentOutputFingerprint = "99b3c8c3275bd019dd78db0a0aa37214e5ad494477d7af4c258f0938f2870e87"
+	ExtractDocumentOutputFingerprint = "5224dfad36d8a1e99df734db7d1903baa58329d724bc50a7f830b2d96439d015"
 )
 
 var extractDocumentInputSchema = json.RawMessage(`{
@@ -43,6 +43,7 @@ var extractDocumentOutputSchema = json.RawMessage(`{
     "document_version":{"type":"string","pattern":"^sha256:[a-f0-9]{64}$"},
     "text":{"type":"string"},
     "markdown":{"type":"string"},
+    "pages":{"type":"array","maxItems":300,"items":{"type":"object","additionalProperties":false,"properties":{"page":{"type":"integer","minimum":1},"width":{"type":"integer","minimum":1},"height":{"type":"integer","minimum":1},"observations":{"type":"array","maxItems":100000,"items":{"$ref":"#/$defs/text_observation"}}},"required":["page","width","height","observations"]}},
     "fields":{"type":"array","items":{"type":"object","additionalProperties":false,"properties":{"name":{"type":"string"},"value_json":{"type":"string"},"confidence":{"type":"number","minimum":0,"maximum":1},"citations":{"type":"array","items":{"$ref":"#/$defs/citation"}}},"required":["name","value_json","confidence","citations"]}},
     "tables":{"type":"array","items":{"type":"object","additionalProperties":false,"properties":{"table_id":{"type":"string"},"cells":{"type":"array","items":{"type":"object","additionalProperties":false,"properties":{"row":{"type":"integer","minimum":0},"column":{"type":"integer","minimum":0},"text":{"type":"string"},"confidence":{"type":"number","minimum":0,"maximum":1},"citations":{"type":"array","items":{"$ref":"#/$defs/citation"}}},"required":["row","column","text","confidence","citations"]}}},"required":["table_id","cells"]}},
     "confidence":{"type":"object","additionalProperties":false,"properties":{"input_quality":{"type":"number","minimum":0,"maximum":1},"ocr":{"type":"number","minimum":0,"maximum":1},"classification":{"type":"number","minimum":0,"maximum":1},"extraction":{"type":"number","minimum":0,"maximum":1},"validation":{"type":"number","minimum":0,"maximum":1},"overall":{"type":"number","minimum":0,"maximum":1}},"required":["input_quality","ocr","classification","extraction","validation","overall"]},
@@ -57,7 +58,8 @@ var extractDocumentOutputSchema = json.RawMessage(`{
   },
   "required":["job_id","status","content_trust","warnings","validation_failures"],
   "$defs":{
-    "citation":{"type":"object","additionalProperties":false,"properties":{"document_version":{"type":"string","pattern":"^sha256:[a-f0-9]{64}$"},"page":{"type":"integer","minimum":1},"polygon":{"type":"array","minItems":3,"items":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"number","minimum":0,"maximum":1}}},"observation_id":{"type":"string","pattern":"^obs_[A-Za-z0-9_]{1,64}$"}},"required":["document_version","page","polygon","observation_id"]}
+    "citation":{"type":"object","additionalProperties":false,"properties":{"document_version":{"type":"string","pattern":"^sha256:[a-f0-9]{64}$"},"page":{"type":"integer","minimum":1},"polygon":{"type":"array","minItems":3,"items":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"number","minimum":0,"maximum":1}}},"observation_id":{"type":"string","pattern":"^obs_[A-Za-z0-9_]{1,64}$"}},"required":["document_version","page","polygon","observation_id"]},
+    "text_observation":{"type":"object","additionalProperties":false,"properties":{"observation_id":{"type":"string","pattern":"^obs_[A-Za-z0-9_]{1,64}$"},"level":{"type":"string","enum":["page","paragraph","line","word"]},"text":{"type":"string","minLength":1,"maxLength":65536},"confidence":{"type":"number","minimum":0,"maximum":1},"polygon":{"type":"array","minItems":3,"items":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"number","minimum":0,"maximum":1}}},"reading_order":{"type":"integer","minimum":0},"parent_observation_id":{"type":"string","pattern":"^obs_[A-Za-z0-9_]{1,64}$"}},"required":["observation_id","level","text","confidence","polygon","reading_order"]}
   }
 }`)
 

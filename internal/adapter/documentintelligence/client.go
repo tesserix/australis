@@ -92,6 +92,23 @@ type Table struct {
 	Cells   []TableCell `json:"cells"`
 }
 
+type TextObservation struct {
+	ObservationID       string      `json:"observation_id"`
+	Level               string      `json:"level"`
+	Text                string      `json:"text"`
+	Confidence          float64     `json:"confidence"`
+	Polygon             [][]float64 `json:"polygon"`
+	ReadingOrder        uint32      `json:"reading_order"`
+	ParentObservationID *string     `json:"parent_observation_id,omitempty"`
+}
+
+type DocumentPage struct {
+	Page         uint32            `json:"page"`
+	Width        uint32            `json:"width"`
+	Height       uint32            `json:"height"`
+	Observations []TextObservation `json:"observations"`
+}
+
 type Confidence struct {
 	InputQuality   float64 `json:"input_quality"`
 	OCR            float64 `json:"ocr"`
@@ -115,6 +132,7 @@ type ExtractResponse struct {
 	DocumentVersion     string              `json:"document_version,omitempty"`
 	Text                string              `json:"text,omitempty"`
 	Markdown            string              `json:"markdown,omitempty"`
+	Pages               []DocumentPage      `json:"pages,omitempty"`
 	Fields              []Field             `json:"fields,omitempty"`
 	Tables              []Table             `json:"tables,omitempty"`
 	Confidence          *Confidence         `json:"confidence,omitempty"`
@@ -379,6 +397,28 @@ func mapResult(status jobResponse, result documentResult) (ExtractResponse, erro
 		}
 		tables = append(tables, Table{TableID: table.TableID, Cells: cells})
 	}
+	pages := make([]DocumentPage, 0, len(result.Pages))
+	for _, page := range result.Pages {
+		observations := make([]TextObservation, 0, len(page.Observations))
+		for _, observation := range page.Observations {
+			points := make([][]float64, 0, len(observation.Polygon.Points))
+			for _, point := range observation.Polygon.Points {
+				points = append(points, []float64{point.X, point.Y})
+			}
+			observations = append(observations, TextObservation{
+				ObservationID:       observation.ObservationID,
+				Level:               observation.Level,
+				Text:                observation.Text,
+				Confidence:          observation.Confidence,
+				Polygon:             points,
+				ReadingOrder:        observation.ReadingOrder,
+				ParentObservationID: observation.ParentObservationID,
+			})
+		}
+		pages = append(pages, DocumentPage{
+			Page: page.Page, Width: page.Width, Height: page.Height, Observations: observations,
+		})
+	}
 	return ExtractResponse{
 		JobID:               status.JobID,
 		Status:              status.Status,
@@ -388,6 +428,7 @@ func mapResult(status jobResponse, result documentResult) (ExtractResponse, erro
 		DocumentVersion:     result.DocumentVersion,
 		Text:                result.Text,
 		Markdown:            result.Markdown,
+		Pages:               pages,
 		Fields:              fields,
 		Tables:              tables,
 		Confidence:          result.Confidence,
@@ -451,6 +492,9 @@ func validateDocumentResult(result documentResult) error {
 	if result.ContentTrust != "untrusted" {
 		return fmt.Errorf("document intelligence returned invalid content trust")
 	}
+	if !validPages(result.Pages) {
+		return fmt.Errorf("document intelligence returned invalid pages")
+	}
 	for name, field := range result.Fields {
 		if name == "" || len(name) > 128 || math.IsNaN(field.Confidence) || field.Confidence < 0 || field.Confidence > 1 {
 			return fmt.Errorf("document intelligence returned an invalid extracted field")
@@ -506,6 +550,46 @@ func validEvidence(items []evidence) bool {
 	for _, item := range items {
 		if item.Page == 0 || !observationPattern.MatchString(item.ObservationID) || !validPolygon(item.Polygon.Points) {
 			return false
+		}
+	}
+	return true
+}
+
+func validPages(pages []documentPage) bool {
+	if len(pages) > 300 {
+		return false
+	}
+	seenPages := make(map[uint32]struct{}, len(pages))
+	for _, page := range pages {
+		if page.Page == 0 || page.Width == 0 || page.Height == 0 || len(page.Observations) > 100000 {
+			return false
+		}
+		if _, exists := seenPages[page.Page]; exists {
+			return false
+		}
+		seenPages[page.Page] = struct{}{}
+		seenIDs := make(map[string]struct{}, len(page.Observations))
+		seenOrders := make(map[uint32]struct{}, len(page.Observations))
+		for _, observation := range page.Observations {
+			if !observationPattern.MatchString(observation.ObservationID) ||
+				(observation.Level != "page" && observation.Level != "paragraph" && observation.Level != "line" && observation.Level != "word") ||
+				strings.TrimSpace(observation.Text) == "" || len(observation.Text) > 65536 ||
+				!validConfidence(observation.Confidence) || !validPolygon(observation.Polygon.Points) {
+				return false
+			}
+			if _, exists := seenIDs[observation.ObservationID]; exists {
+				return false
+			}
+			if _, exists := seenOrders[observation.ReadingOrder]; exists {
+				return false
+			}
+			if observation.ParentObservationID != nil {
+				if _, exists := seenIDs[*observation.ParentObservationID]; !exists {
+					return false
+				}
+			}
+			seenIDs[observation.ObservationID] = struct{}{}
+			seenOrders[observation.ReadingOrder] = struct{}{}
 		}
 	}
 	return true
@@ -583,6 +667,7 @@ type documentResult struct {
 	ContentTrust       string                    `json:"content_trust"`
 	Text               string                    `json:"text"`
 	Markdown           string                    `json:"markdown"`
+	Pages              []documentPage            `json:"pages"`
 	Fields             map[string]extractedValue `json:"fields"`
 	Tables             []documentTable           `json:"tables"`
 	Confidence         *Confidence               `json:"confidence"`
@@ -594,6 +679,23 @@ type documentResult struct {
 	ProcessingProfile  string                    `json:"processing_profile_version"`
 	DurationMS         uint64                    `json:"duration_ms"`
 	Cost               *Cost                     `json:"cost"`
+}
+
+type documentPage struct {
+	Page         uint32            `json:"page"`
+	Width        uint32            `json:"width"`
+	Height       uint32            `json:"height"`
+	Observations []textObservation `json:"observations"`
+}
+
+type textObservation struct {
+	ObservationID       string  `json:"observation_id"`
+	Level               string  `json:"level"`
+	Text                string  `json:"text"`
+	Confidence          float64 `json:"confidence"`
+	Polygon             polygon `json:"polygon"`
+	ReadingOrder        uint32  `json:"reading_order"`
+	ParentObservationID *string `json:"parent_observation_id"`
 }
 
 type extractedValue struct {

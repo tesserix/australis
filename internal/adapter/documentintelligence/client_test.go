@@ -80,6 +80,15 @@ func TestClientResumesACompletedJobAndMapsEvidence(t *testing.T) {
           "content_trust":"untrusted",
           "text":"Invoice INV-1048 total AUD 1280.50",
           "markdown":"# Invoice\n\nTotal: AUD 1280.50",
+          "pages":[{
+            "page":1,"width":1000,"height":1400,
+            "observations":[{
+              "observation_id":"obs_LINE","level":"line","text":"Invoice INV-1048",
+              "confidence":0.97,
+              "polygon":{"points":[{"x":0.1,"y":0.1},{"x":0.9,"y":0.1},{"x":0.9,"y":0.2}]},
+              "reading_order":0,"parent_observation_id":null
+            }]
+          }],
           "fields":{
             "total":{
               "value":{"currency":"AUD","decimal":"1280.50"},
@@ -138,6 +147,13 @@ func TestClientResumesACompletedJobAndMapsEvidence(t *testing.T) {
 	}
 	if result.Text == "" || result.Markdown == "" || len(result.Citations) != 1 {
 		t.Fatalf("content mapping incomplete: %#v", result)
+	}
+	if len(result.Pages) != 1 || len(result.Pages[0].Observations) != 1 {
+		t.Fatalf("Pages = %#v", result.Pages)
+	}
+	observation := result.Pages[0].Observations[0]
+	if observation.ObservationID != "obs_LINE" || observation.Level != "line" || observation.Text != "Invoice INV-1048" || len(observation.Polygon) != 3 {
+		t.Fatalf("observation = %#v", observation)
 	}
 	if len(result.Tables) != 1 || len(result.Tables[0].Cells) != 1 || len(result.Tables[0].Cells[0].Citations) != 1 {
 		t.Fatalf("Tables = %#v", result.Tables)
@@ -216,6 +232,42 @@ func TestClientRejectsResultDataThatViolatesTheUntrustedEvidenceContract(t *test
 	})
 	if err == nil {
 		t.Fatal("Extract() accepted trusted document content")
+	}
+}
+
+func TestClientRejectsInvalidPageObservationHierarchy(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/result") {
+			writeResponse(t, w, `{
+          "schema_version":"1.0",
+          "document_id":"doc_INVALID_PAGE",
+          "document_version":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "content_trust":"untrusted",
+          "pages":[{"page":1,"width":1000,"height":1400,"observations":[{
+            "observation_id":"obs_CHILD","level":"word","text":"invoice","confidence":0.98,
+            "polygon":{"points":[{"x":0.1,"y":0.1},{"x":0.3,"y":0.1},{"x":0.3,"y":0.2}]},
+            "reading_order":0,"parent_observation_id":"obs_MISSING"
+          }]}],
+          "fields":{},"citations":[],"warnings":[],"validation_failures":[]
+        }`)
+			return
+		}
+		writeResponse(t, w, `{"job_id":"job_INVALID_PAGE","status":"completed"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := documentintelligence.NewClient(server.URL, server.Client())
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	_, err = client.Extract(t.Context(), documentintelligence.ExtractRequest{
+		JobID: "job_INVALID_PAGE", DocumentType: "auto", OutputFormat: "structured", IncludeEvidence: true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "invalid pages") {
+		t.Fatalf("Extract() error = %v, want invalid pages", err)
 	}
 }
 
