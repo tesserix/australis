@@ -9,7 +9,7 @@ import (
 
 const (
 	ExtractDocumentInputFingerprint  = "adafd5a6492ce55b11b39a759541b65f9bd7292b69525b871474ddb612a79bee"
-	ExtractDocumentOutputFingerprint = "981ca9f4d40044bf934ee0eca34f62acc52f0e5e8cf9a0a8c9f1b1c96d689d78"
+	ExtractDocumentOutputFingerprint = "99b3c8c3275bd019dd78db0a0aa37214e5ad494477d7af4c258f0938f2870e87"
 )
 
 var extractDocumentInputSchema = json.RawMessage(`{
@@ -39,6 +39,8 @@ var extractDocumentOutputSchema = json.RawMessage(`{
     "status":{"type":"string","enum":["accepted","inspecting","processing","validating","cancelling","cancelled","rejected","partial","review_required","completed"]},
     "content_trust":{"type":"string","const":"untrusted"},
     "result_schema_version":{"type":"string"},
+    "document_id":{"type":"string","pattern":"^doc_[A-Za-z0-9_]{1,64}$"},
+    "document_version":{"type":"string","pattern":"^sha256:[a-f0-9]{64}$"},
     "text":{"type":"string"},
     "markdown":{"type":"string"},
     "fields":{"type":"array","items":{"type":"object","additionalProperties":false,"properties":{"name":{"type":"string"},"value_json":{"type":"string"},"confidence":{"type":"number","minimum":0,"maximum":1},"citations":{"type":"array","items":{"$ref":"#/$defs/citation"}}},"required":["name","value_json","confidence","citations"]}},
