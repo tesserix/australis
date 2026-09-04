@@ -166,7 +166,7 @@ func NewClient(baseURL string, httpClient *http.Client) (*Client, error) {
 	if parsed.Path != "" && parsed.Path != "/" {
 		return nil, fmt.Errorf("document intelligence base URL must not contain a path")
 	}
-	if parsed.Scheme != "https" && !(parsed.Scheme == "http" && isLocalHTTPHost(parsed.Hostname())) {
+	if parsed.Scheme != "https" && (parsed.Scheme != "http" || !isLocalHTTPHost(parsed.Hostname())) {
 		return nil, fmt.Errorf("document intelligence base URL must use HTTPS")
 	}
 	parsed.Path = ""
