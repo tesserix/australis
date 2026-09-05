@@ -20,8 +20,8 @@ still leaks between users. Three planes, three mechanisms:
 | Plane | Isolates | Enforced by | Owner |
 | --- | --- | --- | --- |
 | Engine | product from product | vector namespaces, `tenant_id` in the repository layer, cache keyed by tenant, bulkheads, budgets, corpus partitioning | Australis |
-| Identity | claim from assertion | JWKS-verified gateway JWT → immutable `CallContext` | gateway + `tesserix-mcp-runtime` |
-| Connector | **user from user, role from role** | `ctx.subject` and `ctx.scopes` applied in the data layer | the connector author |
+| Identity | claim from assertion | JWKS-verified gateway JWT; private profile also supplies cryptographically verified caller context | gateway + `tesserix-mcp-runtime` |
+| Connector | **user from user, role from role** | private data uses verified `ctx.subject` and `ctx.scopes`; public service reads declare that they carry no user authority | the connector author |
 
 The third plane is the one with no framework behind it, and it is the one that
 leaks. §6 is about it.
@@ -35,12 +35,12 @@ into the mesh. Each layer answers a question the layer above cannot.
 | --- | --- | --- | --- |
 | L0 mesh transport | is this encrypted, and between which workloads | Istio ambient, ztunnel, SPIFFE ID per ServiceAccount | mTLS required; no plaintext peer |
 | L1 mesh authz | **which workload** may reach this path | waypoint `AuthorizationPolicy` on source principal | namespace-wide deny-all default |
-| L2 identity | **which tenant, which subject, which scopes** | `GatewayJWTContextProvider`, JWKS, fixed issuer/audience/alg | no valid token → no `CallContext` |
+| L2 identity | **which agent, tenant, subject and scopes** | gateway JWT; signed caller context is additionally required for private data | no valid required assertion → no call context |
 | L3 authorisation | **which tool** this identity may invoke | `ToolPolicy` default-deny, fingerprint-bound rules | unruled tool is denied |
 | L4 data | **which rows** this subject may read | repository-layer scoping, optionally Postgres RLS | see §6 — this one is on you |
 
 The load-bearing sentence: **the mesh authenticates workloads, not users.**
-`spiffe://cluster.local/ns/australis-system/sa/agentgateway` proves a particular
+`spiffe://cluster.local/ns/agentgateway-system/sa/agentgateway-mcp` proves a particular
 pod is calling. It cannot know whether that call is on behalf of Kora tenant or
 of user 4471, because the tenant is a claim inside a token the mesh is merely
 forwarding. L1 and L2 are not alternatives.
@@ -59,16 +59,15 @@ cannot be satisfied by anything that merely lands in the right subnet.
 
 ### Namespace and identity layout
 
-```
-australis-system/     engine, agentgateway, registry client
-  sa/australis-engine
-  sa/agentgateway
-australis-kora/       waypoint + Kora's connectors
-  sa/kora-logs        → spiffe://cluster.local/ns/australis-kora/sa/kora-logs
-  sa/kora-recipes     → spiffe://cluster.local/ns/australis-kora/sa/kora-recipes
-australis-mark8ly/    waypoint + mark8ly's connectors
-australis-home-chef/  waypoint + home-chef's connectors
-australis-hms/        waypoint + HMS connectors (shared-cluster deployment only)
+```text
+agentgateway-system/  AgentGateway and route resources
+  sa/agentgateway-mcp → spiffe://cluster.local/ns/agentgateway-system/sa/agentgateway-mcp
+kora/                 waypoint + Kora connector workloads
+  sa/kora-mcp         → spiffe://cluster.local/ns/kora/sa/kora-mcp
+mark8ly/              waypoint + Mark8ly connector workloads
+  sa/mark8ly-catalog-mcp
+homechef/             waypoint + HomeChef connector workloads
+hms/                  waypoint + HMS connectors (shared-cluster deployment only)
 ```
 
 **One ServiceAccount per connector, not per namespace.** That gives each
@@ -83,7 +82,7 @@ Per product namespace, in `tesserix-k8s`, reconciled by ArgoCD:
 
 - A deny-all `AuthorizationPolicy` as the namespace default.
 - An allow rule on the waypoint: source principal
-  `cluster.local/ns/australis-system/sa/agentgateway`, method `POST`, path
+  `cluster.local/ns/agentgateway-system/sa/agentgateway-mcp`, method `POST`, path
   prefix `/mcp/`. Nothing else reaches a connector.
 - `PeerAuthentication` STRICT — no plaintext fallback.
 - A `NetworkPolicy` per connector limiting egress to its own database and the
@@ -94,8 +93,8 @@ Per product namespace, in `tesserix-k8s`, reconciled by ArgoCD:
 ### What must not happen
 
 The waypoint can also validate the gateway JWT via `RequestAuthentication`.
-Adding it is fine as an outer filter. **Removing the in-process validation is
-not**, for two reasons:
+Adding it is fine as an outer filter. For caller-authorized private tools,
+**removing in-process signed caller validation is not**, for two reasons:
 
 1. A single misconfigured waypoint would become a total authentication bypass.
    The runtime would have no way to notice it was now trusting an unverified
@@ -115,7 +114,8 @@ belongs on the waypoint or in-process — never expect ztunnel to do it.
 
 ## 4. L2 — where identity actually comes from
 
-Confirmed against `tesserix-mcp-runtime/docs/gateway-identity.md`:
+For the caller-authorized private profile, confirmed against
+`tesserix-mcp-runtime/docs/gateway-identity.md`:
 
 - Exactly one bearer token per request, verified against a JWKS, with fixed
   issuer, audience, `kid` and lifetime, and a fixed algorithm — RS256, ES256 or
@@ -126,11 +126,17 @@ Confirmed against `tesserix-mcp-runtime/docs/gateway-identity.md`:
 - Forwarded headers and MCP `_meta` **may confirm the verified identity but can
   never create or replace it**.
 
-The result is an immutable `CallContext` carrying tenant, subject and scopes.
-Everything downstream reads from it and nothing may reconstruct it from request
-content. This is the reason LLD validation V8 rejects any tool whose input
-schema declares an identity-shaped property: the model must never be in a
-position to name whose data it wants.
+For caller-authorized private tools, the result is an immutable `CallContext`
+carrying tenant, subject and scopes. Everything downstream reads from it and
+nothing may reconstruct it from request content. This is the reason LLD
+validation V8 rejects any tool whose input schema declares an identity-shaped
+property: the model must never be in a position to name whose data it wants.
+
+A deliberately public, read-only catalog may instead use the
+service-authorized profile: gateway JWT, gateway SPIFFE principal, server key,
+tool policy and a product service credential, with no claim that a user was
+identified. That exception ends as soon as any merchant-private, customer,
+order, inventory or user-specific field is exposed.
 
 ## 5. L3 — `ToolPolicy` is stricter than it looks
 
@@ -151,9 +157,10 @@ for the role case.
 
 ## 6. L4 — the layer with nothing behind it
 
-The runtime hands a handler a verified `ctx.tenant_id` and `ctx.subject`. **It
-has no way to know that the handler's SQL should filter by them.** Every
-cross-user leak in a system shaped like this one lives here.
+In the caller-authorized private profile, the runtime hands a handler a
+verified `ctx.tenant_id` and `ctx.subject`. **It has no way to know that the
+handler's SQL should filter by them.** Every cross-user leak in a system shaped
+like this one lives here.
 
 Four requirements on every connector:
 
@@ -174,7 +181,7 @@ Four requirements on every connector:
 Resolution has a per-tenant part and a per-subject part, and they have different
 cache lifetimes:
 
-```
+```text
 JWT ──▶ tenant, subject, scopes
      ──▶ tenant config @ revision R          }  expensive, per-tenant
      ──▶ Registry fetch by pinned digest     }  cache: LRU 500, TTL 15m,
@@ -221,7 +228,7 @@ while CPU sits flat at 10–20%. A CPU-target HPA would therefore never scale th
 thing that is actually hurting. KEDA's Prometheus scaler lets the trigger be the
 signal that correlates with pain:
 
-```
+```promql
 sum(mcp_inflight_requests{service="kora-logs"}) / count(up{service="kora-logs"})
 target: 6
 ```
@@ -249,7 +256,7 @@ That is acceptable because the engine's degradation path already covers it: the
 tool branch goes down, the answer degrades to document-only with explicit
 disclosure, and the response is a 200 with a disclosure rather than a 500 (HLD
 §9, LLD §6). Any connector for which that is *not* acceptable must be set to
-min 2 and say why in its `servers/<product>/<domain>/README.md`.
+min 2 and say why in the connector's owning repository README.
 
 ## 9. The throttle ladder
 
@@ -277,7 +284,7 @@ Bulkhead counters are **per process**. `tesserix-mcp-runtime` admission counters
 are per-process too (default 16 concurrent per tenant, max 64). So the real
 fleet-wide ceiling for one tenant is:
 
-```
+```text
 effective ceiling = per-process limit x maxReplicas
 ```
 
@@ -285,7 +292,7 @@ At `maxInFlight: 8` and `maxReplicas: 5` that is **40**, not 8. Scaling out
 therefore *weakens* the noisy-neighbour guarantee unless the per-process limit is
 derived from the desired global ceiling:
 
-```
+```text
 per-process limit = desired global ceiling / maxReplicas
 ```
 

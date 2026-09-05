@@ -7,6 +7,10 @@
   and tenant config is config-as-code (PRD §20, unresolved). Both are marked at
   the point of use below.
 
+> [ADR-0004](../adr/0004-product-owned-mcp-connectors.md) supersedes the old
+> assumption that product connector source is co-located here. This LLD still
+> owns the Australis `ToolRetriever` adapter and dependency boundary.
+
 ---
 
 ## 1. Package layout and the dependency rule
@@ -29,10 +33,8 @@ australis/
 │  │  └─ pgvector/
 │  ├─ tenant/              config load, validation, model policy
 │  └─ brain/               capture · corpus · eval · policy · promote (ADR-0002)
-├─ servers/                the connector fleet — one build unit each (ADR-0001 D1)
+├─ servers/                Australis-owned connectors only (ADR-0004)
 │  ├─ _shared/
-│  ├─ kora/logs/
-│  ├─ mark8ly/catalog/
 │  └─ australis-evals/
 └─ training/               offline LoRA pipelines — never in the serving image
 ```
@@ -41,11 +43,10 @@ australis/
 
 1. Nothing under `internal/core/` may import `internal/adapter/...` or any MCP
    SDK. Core defines interfaces; adapters point inward.
-2. Nothing under `internal/` may import `servers/`. The engine reaches a
-   connector over the wire through the gateway, even though its source sits in
-   the same tree. Without this, co-location silently becomes a distributed
-   monolith.
-3. No server may import another server's package. Build units stay independent.
+2. Nothing under `internal/` may import `servers/`. The engine reaches every
+   connector over the wire through the gateway.
+3. No Australis-owned server may import another server's package. Product-owned
+   repositories enforce the equivalent build-unit boundary in their own CI.
 
 See §7 for the checks.
 
@@ -296,7 +297,7 @@ go run ./architecture/check_layers.go
 grep -rl "modelcontextprotocol/go-sdk" --include=*.go internal/ \
   | grep -v '^internal/adapter/mcp/' | grep . && exit 1
 
-# 3. the engine must not import the connector fleet (ADR-0001 D1)
+# 3. the engine must not import connector implementations (ADR-0004)
 grep -rn 'australis/servers/' --include=*.go internal/ | grep . && exit 1
 
 # 4. generated manifests must match a fresh compile
@@ -308,9 +309,9 @@ go build ./... && go vet ./... && go test ./...
 
 Checks 2 and 3 are deliberately blunt greps. They are unambiguous, have no false
 negatives, and a reviewer can verify each by reading one line — which is the
-property that matters for invariants this load-bearing. Check 3 is the one that
-keeps the monorepo honest; without it, the first person in a hurry imports a
-server package directly and the isolation argument in ADR-0001 stops being true.
+property that matters for invariants this load-bearing. Check 3 preserves the
+wire boundary for exceptional Australis-owned connectors; product-owned
+connectors are unreachable as source imports anyway.
 
 ## 8. Testing
 

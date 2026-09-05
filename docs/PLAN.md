@@ -1,8 +1,9 @@
 # Australis — implementation plan
 
 - Date: 2026-09-02
-- Governed by: [PRD](PRD.md), [ADR-0001](adr/0001-mcp-integration-boundary.md), [ADR-0002](adr/0002-shared-brain-and-learning-flywheel.md)
-- Diagram: [`diagrams/australis-architecture.drawio`](diagrams/australis-architecture.drawio)
+- Governed by: [PRD](PRD.md), [ADR-0001](adr/0001-mcp-integration-boundary.md), [ADR-0002](adr/0002-shared-brain-and-learning-flywheel.md), [ADR-0004](adr/0004-product-owned-mcp-connectors.md)
+- Product MCP diagram: [`diagrams/product-mcp-lifecycle.drawio`](diagrams/product-mcp-lifecycle.drawio)
+- Engine diagram: [`diagrams/australis-architecture.drawio`](diagrams/australis-architecture.drawio)
 
 ---
 
@@ -10,9 +11,9 @@
 
 Two tracks that meet.
 
-```
+```text
 Track A — Serving          Phase 1 ──▶ 2 ──▶ 3 ─────────────────────────┐
-(engine + connector fleet)                                              │
+(engine + federated connectors)                                         │
                                                                         ▼
 Track B — Brain                    Phase 3 (capture) ──▶ 4 ──▶ 5 ──▶ 6  ✦ the flywheel turns
 (measure, learn, improve)
@@ -41,10 +42,10 @@ that the pieces are pinned rather than wired.
 | 1.3 | `internal/adapter/mcp` — discovery, resolver, client | conformance testkit green, no network in tests |
 | 1.4 | Digest pinning + validations V1–V8 | each has a fail-closed golden fixture |
 | 1.5 | CI layering checks (LLD §7) | build fails if `core` imports MCP or `servers/` |
-| 1.6 | `servers/kora/logs/` — first MCP server, per-server image | published, routed, callable through the gateway |
-| 1.7 | Per-server CI: path-filtered build, image push, manifest publish | a change under one server rebuilds only that server |
-| 1.8 | **Nightly contract tests** against Kora staging | drift opens an issue automatically |
-| 1.9 | `POST /chat` + SSE, single tool KB, mandatory citations | one real Kora question answered with a citation |
+| 1.6 | Product-owned Mark8ly catalog connector as first independent MCP service | published, routed, callable through the gateway by a named Australis/ADK consumer |
+| 1.7 | Product-owned per-server CI: build, image push, contract evidence, manifest publish | a connector change rebuilds only that connector and runs beside its product API tests |
+| 1.8 | **Nightly contract tests** for exceptional cross-repository connectors | drift opens an issue automatically; product-owned connectors run the contract beside their API |
+| 1.9 | `POST /chat` + SSE, single tool KB, mandatory citations | one real product question answered from the named Mark8ly/ADK consumer with a citation |
 | 1.10 | Namespace + SA + waypoint policy per product (tenancy §3) | a direct pod call bypassing the gateway is refused by mesh authz, not by CIDR |
 | 1.11 | `Deployment` + KEDA `ScaledObject`, min 1 / max 5 (tenancy §8) | connector scales on in-flight requests; no Knative, no scale-to-zero |
 | 1.12 | Scope filter applied **after** the resolution cache (tenancy §7) | warm tenant cache + narrower-scope subject → narrower tool list |
@@ -57,11 +58,11 @@ the output fingerprint but not the output schema, so V5 is evaluated against
 the live `tools/list` contract during activation, then its fingerprint is
 compared with the pinned Registry/config value.
 
-**1.8 is not optional and does not move to a later phase.** It is the mitigation
-for the one genuine cost of the monorepo decision (ADR-0001, "the residual risk
-worth naming"): a connector whose product schema moved underneath it returns
-wrong data that the assistant then cites confidently. Without the nightly job,
-that failure is silent.
+**1.8 is not optional for a connector that remains across a repository
+boundary.** It mitigates the residual drift risk named by ADR-0001: a product
+schema can move underneath a remote connector and return plausible but wrong
+data. ADR-0004 makes product-owned CI the default prevention; the nightly lane
+remains the fallback for exceptional cross-repository connectors.
 
 **1.10–1.12 belong in Phase 1, not later.** Retrofitting an isolation boundary
 onto a running fleet means re-reviewing every connector already shipped; adding
@@ -69,10 +70,10 @@ it before the second connector exists costs one afternoon. The cache-ordering
 rule in 1.12 is the same argument in miniature — it is free now and a
 correctness bug to discover later (tenancy §7).
 
-**Exit criteria:** a Kora question is answered from live data, with a citation,
-through the gateway, from a digest-pinned server, reachable only from the
-gateway's SPIFFE principal. Deliberately deferred: document KBs, multi-KB
-mixing, proactivity, any learning.
+**Exit criteria:** the named Mark8ly/ADK consumer answers one product question
+from live data, with a citation, through the gateway, from a digest-pinned
+server reachable only from AgentGateway's SPIFFE principal. Deliberately
+deferred: document KBs, multi-KB mixing, proactivity, any learning.
 
 ---
 

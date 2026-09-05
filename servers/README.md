@@ -1,38 +1,33 @@
-# `servers/` — the MCP connector fleet
+# `servers/` — Australis-owned MCP connectors
 
-Every MCP server in the product family is built and published from this
-directory. See [ADR-0001](../docs/adr/0001-mcp-integration-boundary.md) for why,
-and the [authoring guide](../docs/guides/authoring-an-mcp-server.md) for how.
+Product-domain connectors live in their product repository by default. This
+directory is reserved for connectors whose backing data and release lifecycle
+are owned by Australis. See
+[ADR-0004](../docs/adr/0004-product-owned-mcp-connectors.md) and the
+[product onboarding guide](../docs/guides/product-mcp-onboarding.md).
 
 ## The rule that makes this safe
 
-> **Monorepo of source, polyrepo of artifacts.**
+> **Federated source, one platform contract.**
 
-Sharing a git repository must never mean sharing a failure domain. Each server
-below is an independent build unit with its own lockfile, image, tag, Registry
-object, credential and deployment. There is no "the Australis servers image",
-and there is no deploy that carries two tenants at once.
+Every server remains an independent build unit with its own lockfile, image,
+tag, Registry object, credential and deployment. Product connectors follow the
+same contract in their owning repository; there is no shared Australis servers
+image and no deployment that carries two tenants at once.
 
 ## Layout
 
-```
+```text
 servers/
 ├─ _shared/                  vetted shared library — keep small, or empty
-├─ kora/
-│  └─ logs/                  io.github.tesserix/kora-logs
-│     ├─ pyproject.toml      own lockfile
-│     ├─ Dockerfile          own image
-│     ├─ mcp-authoring.json  manifest source
-│     ├─ server.json         generated — do not hand-edit
-│     ├─ mcpserver.yaml      generated — do not hand-edit
-│     ├─ src/
-│     └─ tests/
-├─ mark8ly/
-│  ├─ catalog/
-│  └─ orders/
-├─ home-chef/
-│  └─ recipes/
-└─ australis-evals/          engine-owned (ADR-0001 D5)
+└─ australis-evals/          example engine-owned connector
+   ├─ pyproject.toml         own lockfile
+   ├─ Dockerfile             own image
+   ├─ mcp-authoring.json     manifest source
+   ├─ server.json            generated — do not hand-edit
+   ├─ mcpserver.yaml         generated — do not hand-edit
+   ├─ src/
+   └─ tests/
 ```
 
 One server per bounded domain. `kora-logs`, not `kora`. A god-server accumulates
@@ -64,7 +59,7 @@ write the reason in your server's README. Full rationale and the throttle ladder
 | 6 | All effects read-only in v1 | ADR-0001 D6 |
 | 7 | Each server directory has a CODEOWNERS entry | co-locating code must not transfer domain ownership |
 | 8 | Own ServiceAccount, and own `Deployment` + `ScaledObject` | transport identity and data identity must name the same unit |
-| 9 | Every data path scoped by `ctx.subject` at one repository choke point | the runtime verifies *who is calling*; only you can scope *which rows* |
+| 9 | Private data paths use verified `ctx.subject` at one repository choke point; public service reads declare that profile explicitly | the runtime verifies caller context when required; only the product can authorize rows |
 
 Invariants 8 and 9 come from
 [tenancy-and-identity](../docs/design/tenancy-and-identity.md). Invariant 9 is
@@ -73,29 +68,28 @@ the one that leaks.
 
 ## CI behaviour
 
-Path-filtered. A change under `servers/kora/logs/` builds, tests, images and
-publishes exactly that server. A broken Kora build cannot block a mark8ly
-release, and a Kora change cannot trigger an HMS redeploy.
+Path-filtered. A change under one Australis-owned server builds, tests, images
+and publishes exactly that server. Product-owned connector CI lives in the
+product repository and follows the same sequence.
 
-```
+```text
 change detected → lint + typecheck → conformance testkit (no network)
                 → compile manifests → assert generated files match
                 → build image → push → agentic apply → wait for activation
 ```
 
-Nightly, separately: **contract tests** run each connector against its product's
-staging API and open an issue on divergence. This is the mitigation for the one
-real cost of keeping connectors outside the product repo — schema drift that no
-product test would catch. Do not disable it.
+Product-owned connectors run **contract tests** with their product API CI.
+Nightly staging tests remain mandatory only for exceptional cross-repository
+dependencies.
 
 ## Adding a server
 
 ```bash
-mkdir -p servers/<product>/<domain> && cd servers/<product>/<domain>
-uv init && uv add 'tesserix-mcp-runtime[manifest]'
+mkdir -p servers/<domain> && cd servers/<domain>
+uv init
+uv add "tesserix-mcp-runtime[manifest] @ https://github.com/tesserix/tesserix-mcp-runtime/releases/download/v0.1.0-rc.6/tesserix_mcp_runtime-0.1.0rc6-py3-none-any.whl"
 ```
 
 Then follow the [authoring guide](../docs/guides/authoring-an-mcp-server.md) and
-work through its checklist before opening the PR. The checklist is short and
-every item on it exists because skipping it produces a connector that looks fine
-and cites wrong data.
+the [product onboarding guide](../docs/guides/product-mcp-onboarding.md) before
+opening the PR.

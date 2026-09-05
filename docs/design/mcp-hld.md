@@ -7,19 +7,25 @@
   two paths meet.
 - Diagram: [`../diagrams/australis-architecture.drawio`](../diagrams/australis-architecture.drawio), pages 1–3
 
+> **Current ownership direction:**
+> [ADR-0004](../adr/0004-product-owned-mcp-connectors.md) supersedes the source
+> co-location portions of ADR-0001. Product-domain connector source now lives
+> with the product API by default; independent artifacts, Registry discovery,
+> Gateway routing and the `ToolRetriever` boundary remain unchanged. See the
+> [product onboarding guide](../guides/product-mcp-onboarding.md) and its
+> [editable diagram](../diagrams/product-mcp-lifecycle.drawio).
+
 ---
 
 ## 1. The one-paragraph version
 
-Every connector in the family is written, built and published from this
-repository: a server over a product's own data, compiled to a manifest and
-published to the Agentic Registry. Australis then discovers that server by
-capability, pins it by digest, and calls its tools through AgentGateway during
-retrieval — over the wire, exactly as it would call a server it had never seen
-the source of. The Registry is a catalog and is never on the request path; the
-gateway is the request path and is never the authoriser; the MCP runtime
-authorises every call default-deny. Sharing a repository is a source-tree fact,
-not a runtime fact: each server is its own build unit, image and deployment.
+Each product-domain connector is written, built and tested beside the product
+API it adapts, then published to the Agentic Registry under one platform
+contract. Australis discovers that server by capability, pins it by digest, and
+calls it through AgentGateway during retrieval. The Registry is a catalog and
+is never on the request path; the gateway is the request path and never the
+final data authoriser; the MCP runtime and product API re-check their own
+boundaries. Every server remains its own build unit, image and deployment.
 
 ## 2. System context
 
@@ -30,7 +36,8 @@ Five parties, four of which already exist.
 | Product (Kora, mark8ly, home-chef, HMS) | owns the data and reviews its connector (CODEOWNERS) | exists |
 | Product BFF | holds Australis credentials, circuit-breaks, degrades | per PRD §8 |
 | **Australis engine** | retrieval, grounding, citations, routing, budgets | **to build** |
-| **`servers/` — the connector fleet** | every product's MCP server, built and published here | **to build** |
+| **Product-owned MCP services** | expose bounded product data through the shared contract | Mark8ly implemented; others mixed/legacy |
+| **`servers/`** | Australis-owned connector implementations only | reserved |
 | Agentic Registry | catalog, discovery, RBAC, signing | exists |
 | AgentGateway | MCP data plane, routes, rate limits | exists |
 
@@ -38,23 +45,18 @@ See diagram page 1.
 
 ## 3. Ownership boundaries
 
-Source lives together; runtime does not. That distinction carries the whole
-design, so it is worth drawing twice.
+Source follows the owner of the backing contract. Runtime remains isolated in
+all cases.
 
-**Source tree — one repository:**
+**Source and desired-state repositories:**
 
 ```
- australis/
- ├─ internal/core/          ports · evidence · retrieval · compose
- │                          ↳ may NOT import servers/ or any MCP SDK
- ├─ internal/adapter/mcp/   the ONLY package that knows MCP exists
- ├─ internal/brain/         capture · corpus · eval · policy · promote
- ├─ servers/                the connector fleet — one build unit each
- │   ├─ kora/logs/              CODEOWNERS: Kora team
- │   ├─ mark8ly/catalog/        CODEOWNERS: mark8ly team
- │   ├─ home-chef/recipes/      CODEOWNERS: home-chef team
- │   └─ australis-evals/        CODEOWNERS: engine team
- └─ training/               offline only — never in the serving image
+ mark8ly/services/mcp/       connector code + API contract tests + image
+ kora/<bounded-service>/     future product-owned connector code
+ australis/servers/          Australis-owned connectors only
+ tesserix-k8s/               Deployment + Service + SA + mesh + secrets
+ devai/registry-seeds/       MCPServer catalog record
+ australis/tenant-config/    exact consumer pins + eval configuration
 ```
 
 **Runtime — nothing is shared:**
@@ -66,31 +68,29 @@ design, so it is worth drawing twice.
 ```
 
 - **Every server is an independent build unit** — own lockfile, image, tag,
-  Registry object, credential, deployment (ADR-0001 D1). CI is path-filtered, so
-  a Kora change rebuilds Kora's server and nothing else.
-- **The product still owns its connector** through CODEOWNERS (D5).
-  Co-locating the code does not transfer the domain knowledge in it.
+  Registry object, credential and deployment (ADR-0004). A Mark8ly connector
+  change rebuilds only that connector.
+- **The product owns its connector** through repository ownership and
+  CODEOWNERS. Product API and connector contract changes share CI.
 - **Australis owns the port, not the protocol** (D2). One directory knows MCP
-  exists, and `internal/core/` may not import `servers/` at all — the engine is
-  a client over the wire even though the source sits in the same tree. This is
-  what keeps a monorepo from becoming a distributed monolith.
+  exists, and `internal/core/` may not import connector implementations — the
+  engine is always a client over the wire.
 - **The Registry owns no runtime** and the **gateway owns no policy**. Both are
   upstream invariants, not choices we get to relax.
 
-The cost of this arrangement is stated plainly in ADR-0001: schema drift between
-a product and its connector is no longer caught by the product's own tests. The
-nightly contract-test job is the mitigation, and it ships in Phase 1.
+Product ownership makes schema drift visible in product CI. Any exceptional
+cross-repository connector retains a nightly staging contract test.
 
 ## 4. Lifecycle of one connector
 
-Six stages. Stages 1–3 run in this repo's per-server CI; 4–6 run in the engine
-at request time. See diagram page 2.
+Six stages. Stages 1–3 run in the owning connector repository; 4–6 run in the
+engine at request time. See the
+[product lifecycle diagram](../diagrams/product-mcp-lifecycle.drawio).
 
-**1. Author** — under `servers/<product>/<domain>/`, using
-`tesserix-mcp-runtime`: typed
-`callable_tool`, closed Pydantic input *and* output models, `ToolMetadata`
-carrying scopes and effects. Tenant identity arrives on a verified
-`CallContext` and is never a tool parameter.
+**1. Author** — in one independently locked product service, using the reviewed
+Go shared MCP package, `tesserix-mcp-runtime`, or another conforming runtime.
+Input and output schemas are closed and bounded. Private identity arrives in
+verified signed context and is never a model-controlled tool parameter.
 
 **2. Compile** — `tesserix-mcp-manifest` turns one authoring document into two
 byte-stable artifacts: a portable `server.json` and a
