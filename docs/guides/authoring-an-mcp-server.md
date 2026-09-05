@@ -1,8 +1,10 @@
 # Guide — authoring an MCP server for Australis
 
 Audience: a product team (Kora, mark8ly, home-chef, HMS) giving Australis access
-to its live data. Follows [ADR-0001](../adr/0001-mcp-integration-boundary.md);
-background in the [HLD](../design/mcp-hld.md).
+to its live data. Start with the
+[product onboarding guide](product-mcp-onboarding.md), follow
+[ADR-0004](../adr/0004-product-owned-mcp-connectors.md), and use this guide for
+the Python authoring details.
 
 ---
 
@@ -13,12 +15,11 @@ background in the [HLD](../design/mcp-hld.md).
 code**, not hand-written. Hand-editing the generated manifest breaks the schema
 fingerprints that Australis pins against, and your server stops resolving.
 
-**Your server lives in `australis/servers/`, but you still own it.** All
-connectors are built and published from one repo (ADR-0001), and
-`servers/<product>/**` carries your team's CODEOWNERS entry. Co-locating the code
-does not transfer the domain knowledge in it — the person who knows that
-`daily_log_summary` must exclude soft-deleted entries still reviews changes to
-it.
+**Keep the server beside the system it adapts.** Product-domain connectors live
+in the product repository by default, close to the product API contract and its
+reviewers. Only a connector whose data and release lifecycle are owned by
+Australis belongs under `australis/servers/`. In either location, the owning
+team's CODEOWNERS entry applies.
 
 **Your server is still its own build unit.** Own lockfile, own image, own tag,
 own credential, own deployment. CI is path-filtered: your change rebuilds your
@@ -31,12 +32,19 @@ domain.
 
 ### 1. Scaffold
 
-In the `australis` repo:
+In the owning product repository (or `australis` only for an
+Australis-owned connector):
 
 ```bash
-mkdir -p servers/<product>/<domain> && cd servers/<product>/<domain>
-uv init && uv add 'tesserix-mcp-runtime[manifest]'
+mkdir -p services/<product-domain-mcp> && cd services/<product-domain-mcp>
+uv init
+uv add "tesserix-mcp-runtime[manifest] @ https://github.com/tesserix/tesserix-mcp-runtime/releases/download/v0.1.0-rc.6/tesserix_mcp_runtime-0.1.0rc6-py3-none-any.whl"
 ```
+
+This is a release wheel, not a PyPI lookup. Commit `uv.lock`, verify the wheel
+checksum and attestation in CI, and update the pin deliberately. See the
+[end-to-end onboarding guide](product-mcp-onboarding.md#2-select-runtime-and-adk-responsibilities)
+for the current installation and conformance policy.
 
 Name it for a bounded domain, not for the product: `kora-logs`, not `kora`. One
 server per domain. A god-server accumulates unrelated scopes, and scopes are the
@@ -79,7 +87,7 @@ Non-negotiables, and why each one exists:
 | --- | --- |
 | Closed input **and** output models (`extra: forbid`) | Australis cannot cite an untyped blob; an open schema fails validation rule V5 |
 | Identity and tenant from `CallContext` only | a `user_id` input parameter is a cross-tenant escape hatch; resolution rejects it (V8) |
-| Scope every query by `ctx.subject` | the runtime proves *who is calling*; nothing but your repository layer can scope *which rows* ([tenancy §6](../design/tenancy-and-identity.md)) |
+| For private data, scope every query by verified `ctx.subject` | the runtime proves *who is calling*; nothing but your repository layer can scope *which rows* ([tenancy §6](../design/tenancy-and-identity.md)) |
 | Read-only effects in v1 | ADR-0001 D6 — assist and guide, the product executes |
 | Return something citable | Australis attaches `source_locator` to the citation, per PRD §12 |
 | **p99 under 400 ms** | the engine's latency budget; see "Performance" below |
@@ -236,10 +244,11 @@ quality regression, so alert on your own p99.
 - [ ] Manifests generated in CI and committed alongside the code change
 - [ ] p99 measured and under 400 ms
 - [ ] Conformance tests green (`tesserix-mcp-runtime` testkit, no network)
-- [ ] CODEOWNERS entry exists for `servers/<product>/<domain>/`
+- [ ] CODEOWNERS entry exists for the connector directory in its owning repo
 - [ ] Contract test added, so the nightly job catches drift against your staging API
-- [ ] Every query scoped by `ctx.subject` at **one** repository choke point
-- [ ] Test: two subjects, same tenant, same tool → no cross-user rows
+- [ ] Authorization profile declared: public service read or caller-authorized private read
+- [ ] Private data: every query scoped by verified `ctx.subject` at **one** repository choke point
+- [ ] Private data: two subjects, same tenant, same tool → no cross-user rows
 - [ ] Postgres RLS enabled on the tables you read, where the product supports it
 - [ ] Own ServiceAccount, and a DB credential scoped to this domain's tables only
 - [ ] `ScaledObject` min 1 / max 5, or min 2 with the reason written down
@@ -256,18 +265,17 @@ quality regression, so alert on your own p99.
 | `activation_contract_invalid` | route not reconciled yet | check GitOps sync; publication is not activation |
 | Result never cited | output schema open, or no citable locator | close the model; return `source_locator` |
 
-
 ---
 
 ## One thing the nightly job protects you from
 
-Your connector lives in `australis`, so your product's own test suite does not
-know it exists. If your schema moves — a column renamed, a soft-delete flag
-added, an enum extended — nothing in your CI will notice, and the connector will
-keep returning results that *look* fine.
+If an Australis-owned connector lives here while adapting a separate product
+API, that product's own test suite does not know it exists. If the schema moves
+— a column renamed, a soft-delete flag added, an enum extended — the remote
+connector can keep returning results that *look* fine.
 
-The nightly contract-test job runs your connector against your staging API and
-opens an issue on divergence. It is the mitigation for the single real cost of
-the monorepo arrangement (ADR-0001, "the residual risk worth naming"). Add a
-contract test when you add a tool, and do not disable the job when it is noisy —
-a noisy contract test is usually telling you something true.
+Product-owned connectors run contract tests in the same CI as the product API.
+For the remaining cross-repository case, the nightly contract-test job runs the
+connector against staging and opens an issue on divergence. Add a contract test
+with every tool and do not disable a noisy job; it is usually detecting real
+drift.

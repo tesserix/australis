@@ -22,9 +22,10 @@ checkpoints worth stopping at.
 | [`docs/PRD.md`](./docs/PRD.md) | product requirements, tenant contract, roadmap |
 | [`docs/PLAN.md`](./docs/PLAN.md) | phased implementation plan across both tracks |
 | **Decisions** | |
-| [`adr/0001-mcp-integration-boundary.md`](./docs/adr/0001-mcp-integration-boundary.md) | connectors live here, as independent build units; how far Australis may bind to MCP |
+| [`adr/0001-mcp-integration-boundary.md`](./docs/adr/0001-mcp-integration-boundary.md) | original MCP integration boundary; source-location rules are partially superseded by ADR-0004 |
 | [`adr/0002-shared-brain-and-learning-flywheel.md`](./docs/adr/0002-shared-brain-and-learning-flywheel.md) | what "our own model" means, what may be learned across products, and what may never be |
 | [`adr/0003-evaluation-platform-and-grader.md`](./docs/adr/0003-evaluation-platform-and-grader.md) | shared eval store on global CNPG, grader service, Langfuse as eval UI |
+| [`adr/0004-product-owned-mcp-connectors.md`](./docs/adr/0004-product-owned-mcp-connectors.md) | product-owned connectors by default; ownership, auth, mesh, rollout and migration |
 | **Design** | |
 | [`design/mcp-hld.md`](./docs/design/mcp-hld.md) | connector path — context, lifecycle, failure domains |
 | [`design/mcp-lld.md`](./docs/design/mcp-lld.md) | the `ToolRetriever` port, resolution, invocation, validations |
@@ -34,18 +35,22 @@ checkpoints worth stopping at.
 | [`design/orchestration-lld.md`](./docs/design/orchestration-lld.md) | supervisor internals — modules, contracts, ceilings, durable path |
 | **Guides** | |
 | [`guides/authoring-an-mcp-server.md`](./docs/guides/authoring-an-mcp-server.md) | how to write, publish and register a connector |
-| [`servers/README.md`](./servers/README.md) | the connector fleet: layout, invariants, CI behaviour |
+| [`guides/product-mcp-onboarding.md`](./docs/guides/product-mcp-onboarding.md) | reusable end-to-end product onboarding, security, ADK, tests, evals and FAQ |
+| [`servers/README.md`](./servers/README.md) | Australis-owned connectors: layout, invariants, CI behaviour |
 | **Diagrams** | |
 | [`diagrams/australis-architecture.drawio`](./docs/diagrams/australis-architecture.drawio) | 7 pages — context · lifecycle · resolution · invocation · build & publish · flywheel · learning tiers |
 | [`diagrams/australis-tenancy.drawio`](./docs/diagrams/australis-tenancy.drawio) | 4 pages — isolation layers · stateless resolution · deployment topology · throttle ladder |
 | [`diagrams/australis-orchestration.drawio`](./docs/diagrams/australis-orchestration.drawio) | 4 pages — context · task shapes · supervised hand-off · LLD |
+| [`diagrams/product-mcp-lifecycle.drawio`](./docs/diagrams/product-mcp-lifecycle.drawio) | 4 pages — product architecture · release lifecycle · identity and secrets · promotion gates |
 
 ## The three ideas the design rests on
 
-**Monorepo of source, polyrepo of artifacts.** Every connector is built and
-published from this repo, and every connector is nonetheless its own build unit,
-image, credential and deployment. Sharing a repository never means sharing a
-failure domain. ([ADR-0001](./docs/adr/0001-mcp-integration-boundary.md))
+**Federated source, one platform contract.** A product-domain connector lives
+beside the product API and is independently built, deployed and operated by that
+team. Australis owns consumer pins, selection, grounding and evaluation;
+Agentic Platform owns Registry, Gateway and the mesh contract. Only connectors
+whose data and lifecycle are owned by Australis live under `servers/`.
+([ADR-0004](./docs/adr/0004-product-owned-mcp-connectors.md))
 
 **Grounding is structural, not learned.** Citations and the confidence gate live
 in code and run around the model, never inside it. That is what lets Australis

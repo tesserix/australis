@@ -1,10 +1,15 @@
 # ADR-0001: MCP integration boundary and ownership
 
-- Status: Accepted
+- Status: Superseded in part by [ADR-0004](0004-product-owned-mcp-connectors.md)
 - Date: 2026-09-02
 - Owner: Mahesh Sangawar
 - Relates to: [PRD](../PRD.md) §5.2, §6.1, §7, §8, §11; [ADR-0002](0002-shared-brain-and-learning-flywheel.md)
 - Supersedes: none
+
+> ADR-0004 supersedes D1 and D5 only where this record requires all product
+> connector source to live in Australis. The protocol boundary, independent
+> artifacts, Registry discovery, Gateway invocation, read-only default, and
+> explicit deployment selection remain current.
 
 ## Context
 
