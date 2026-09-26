@@ -1,0 +1,107 @@
+{
+  "apiVersion": "registry.agentic.dev/v1alpha1",
+  "kind": "MCPServer",
+  "metadata": {
+    "annotations": {
+      "discovery.agentic.dev/summary": "Disabled Klook experiences capability.",
+      "discovery.agentic.dev/when-to-use": "check Klook integration readiness"
+    },
+    "labels": {
+      "mcp.tesserix.app/class": "platform",
+      "mcp.tesserix.app/gateway-export": "false",
+      "transport": "streamable-http"
+    },
+    "name": "klook-experiences-mcp",
+    "namespace": "australis",
+    "orgId": "tesserix",
+    "tag": "0.1.0rc6",
+    "tenantId": "australis",
+    "visibility": "internal"
+  },
+  "spec": {
+    "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+    "credentialRef": {
+      "header": "X-MCP-Key",
+      "key": "KLOOK_EXPERIENCES_MCP_KEY",
+      "secretName": "product-mcp-upstream-keys"
+    },
+    "description": "Disabled Klook experiences connector pending the partner contract.",
+    "name": "klook-experiences-mcp",
+    "remotes": [
+      {
+        "type": "streamable-http",
+        "url": "https://klook-experiences-mcp.australis.svc.cluster.local/mcp"
+      }
+    ],
+    "repository": {
+      "source": "github",
+      "url": "https://github.com/tesserix/australis"
+    },
+    "serviceSelector": {
+      "namespaces": {
+        "matchLabels": {
+          "kubernetes.io/metadata.name": "australis"
+        }
+      },
+      "services": {
+        "matchLabels": {
+          "app.kubernetes.io/name": "klook-experiences-mcp"
+        }
+      }
+    },
+    "title": "Klook Experiences candidate",
+    "version": "0.1.0rc6",
+    "x-tesserix": {
+      "adapter": "native",
+      "authoringVersion": "1.0",
+      "egressHosts": [],
+      "lifecycle": "active",
+      "protocolVersions": [
+        "2026-07-28"
+      ],
+      "requiredScopes": [
+        "travel:activities:read"
+      ],
+      "routePolicy": {
+        "directAccess": false,
+        "gatewayPath": "/mcp/australis/klook-experiences-mcp"
+      },
+      "semantic": {
+        "capabilities": [],
+        "domains": [
+          "travel"
+        ],
+        "keywords": [],
+        "notFor": [
+          "booking or payment actions"
+        ],
+        "risk": "low",
+        "summary": "Disabled Klook experiences capability.",
+        "whenToUse": [
+          "check Klook integration readiness"
+        ]
+      },
+      "tools": [
+        {
+          "capabilities": [],
+          "description": "Unavailable until the Klook partner contract and credentials are configured.",
+          "inputFingerprint": "25be1a57c8f5541f1b5377db12bd5cf7aad510e4d226366ef633754271324c98",
+          "inputSchema": {
+            "properties": {},
+            "required": [],
+            "type": "object"
+          },
+          "inputSchemaFingerprint": "c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699",
+          "name": "search_activities",
+          "outputFingerprint": "3fe94702604da586369b195b606ea8c595efae031f7fea0327107f050a0c65b4",
+          "requiredScopes": [
+            "travel:activities:read"
+          ],
+          "requires": [],
+          "semantic": {},
+          "status": "active"
+        }
+      ]
+    }
+  }
+}

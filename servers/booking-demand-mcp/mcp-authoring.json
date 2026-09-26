@@ -1,0 +1,57 @@
+{
+  "manifest_version": "1.0",
+  "name": "io.github.tesserix/booking-demand-mcp",
+  "version": "0.1.0rc6",
+  "description": "Read Booking.com partner stay offers; disabled until partner activation.",
+  "title": "Booking Demand MCP",
+  "repository": {
+    "source": "github",
+    "url": "https://github.com/tesserix/australis"
+  },
+  "ownership": {
+    "namespace": "australis",
+    "tenant_id": "australis",
+    "org_id": "tesserix",
+    "visibility": "internal",
+    "labels": {
+      "mcp.tesserix.app/class": "platform",
+      "mcp.tesserix.app/gateway-export": "false"
+    }
+  },
+  "adapter": "native",
+  "protocol_versions": [
+    "2026-07-28"
+  ],
+  "lifecycle": "active",
+  "route_policy": {
+    "direct_access": false,
+    "gateway_path": "/mcp/australis/booking-demand-mcp"
+  },
+  "remote": {
+    "url": "https://booking-demand-mcp.australis.svc.cluster.local/mcp"
+  },
+  "credential_ref": {
+    "secret_name": "product-mcp-upstream-keys",
+    "key": "BOOKING_DEMAND_MCP_KEY"
+  },
+  "required_scopes": [
+    "travel:stays:read"
+  ],
+  "semantic": {
+    "summary": "Read partner accommodation offers.",
+    "domains": [
+      "travel"
+    ],
+    "risk": "low",
+    "when_to_use": [
+      "compare stay offers from Booking.com"
+    ],
+    "not_for": [
+      "booking or payment actions"
+    ]
+  },
+  "egress_hosts": [
+    "demandapi.booking.com",
+    "demandapi-sandbox.booking.com"
+  ]
+}

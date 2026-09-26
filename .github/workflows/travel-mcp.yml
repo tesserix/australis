@@ -1,0 +1,101 @@
+name: Travel MCP verification
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ["servers/booking-demand-mcp/**", "servers/klook-experiences-mcp/**", ".github/workflows/travel-mcp.yml", "scripts/ci/smoke-travel-mcp.sh"]
+  push:
+    branches: [main]
+    paths: ["servers/booking-demand-mcp/**", "servers/klook-experiences-mcp/**", ".github/workflows/travel-mcp.yml", "scripts/ci/smoke-travel-mcp.sh"]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        package: [servers/booking-demand-mcp, servers/klook-experiences-mcp]
+    container:
+      image: ghcr.io/tesserix/base-python-adk-3.14:20260912@sha256:4cbbea807dc3af7664824e7e270a9618eaa49cb16806c83d58236ce3c2aba523
+      options: --user root
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+        with:
+          version: "0.12.5"
+      - run: uv sync --frozen
+        env:
+          UV_PROJECT_ENVIRONMENT: .venv
+      - run: |
+          .venv/bin/ruff format --check .
+          .venv/bin/ruff check .
+          .venv/bin/mypy --strict src/
+          .venv/bin/pytest
+          .venv/bin/python - <<'PYTHON'
+          import runpy
+          from pathlib import Path
+          paths = [Path("server.json"), Path("mcpserver.json")]
+          before = [path.read_bytes() for path in paths]
+          runpy.run_path("scripts/compile_manifest.py", run_name="__main__")
+          if before != [path.read_bytes() for path in paths]:
+              raise SystemExit("Compiled manifests differ from checked-in artifacts")
+          PYTHON
+          uv build
+
+  image:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: servers/booking-demand-mcp
+            name: booking-demand-mcp
+            prefix: BOOKING
+          - package: servers/klook-experiences-mcp
+            name: klook-experiences-mcp
+            prefix: KLOOK
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
+      - name: Build image for authenticated smoke test
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
+        with:
+          context: ${{ matrix.package }}
+          load: true
+          tags: travel-mcp:smoke
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+      - name: Verify readiness and reject unauthenticated MCP requests
+        env:
+          MCP_IMAGE: travel-mcp:smoke
+          MCP_PREFIX: ${{ matrix.prefix }}
+        run: bash scripts/ci/smoke-travel-mcp.sh
+      - if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish verified image with provenance and SBOM
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
+        with:
+          context: ${{ matrix.package }}
+          push: true
+          tags: ghcr.io/tesserix/${{ matrix.name }}:sha-${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          provenance: mode=max
+          sbom: true

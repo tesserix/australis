@@ -1,0 +1,54 @@
+{
+  "manifest_version": "1.0",
+  "name": "io.github.tesserix/klook-experiences-mcp",
+  "version": "0.1.0rc6",
+  "description": "Disabled Klook experiences connector pending the partner contract.",
+  "title": "Klook Experiences candidate",
+  "repository": {
+    "source": "github",
+    "url": "https://github.com/tesserix/australis"
+  },
+  "ownership": {
+    "namespace": "australis",
+    "tenant_id": "australis",
+    "org_id": "tesserix",
+    "visibility": "internal",
+    "labels": {
+      "mcp.tesserix.app/class": "platform",
+      "mcp.tesserix.app/gateway-export": "false"
+    }
+  },
+  "adapter": "native",
+  "protocol_versions": [
+    "2026-07-28"
+  ],
+  "lifecycle": "active",
+  "route_policy": {
+    "direct_access": false,
+    "gateway_path": "/mcp/australis/klook-experiences-mcp"
+  },
+  "remote": {
+    "url": "https://klook-experiences-mcp.australis.svc.cluster.local/mcp"
+  },
+  "credential_ref": {
+    "secret_name": "product-mcp-upstream-keys",
+    "key": "KLOOK_EXPERIENCES_MCP_KEY"
+  },
+  "required_scopes": [
+    "travel:activities:read"
+  ],
+  "semantic": {
+    "summary": "Disabled Klook experiences capability.",
+    "domains": [
+      "travel"
+    ],
+    "risk": "low",
+    "when_to_use": [
+      "check Klook integration readiness"
+    ],
+    "not_for": [
+      "booking or payment actions"
+    ]
+  },
+  "egress_hosts": []
+}

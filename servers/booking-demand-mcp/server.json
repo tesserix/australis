@@ -1,0 +1,17 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "description": "Read Booking.com partner stay offers; disabled until partner activation.",
+  "name": "io.github.tesserix/booking-demand-mcp",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://booking-demand-mcp.australis.svc.cluster.local/mcp"
+    }
+  ],
+  "repository": {
+    "source": "github",
+    "url": "https://github.com/tesserix/australis"
+  },
+  "title": "Booking Demand MCP",
+  "version": "0.1.0rc6"
+}
