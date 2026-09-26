@@ -36,8 +36,15 @@ jobs:
           .venv/bin/ruff check .
           .venv/bin/mypy --strict src/
           .venv/bin/pytest
-          .venv/bin/python scripts/compile_manifest.py
-          git diff --exit-code -- server.json mcpserver.json
+          .venv/bin/python - <<'PYTHON'
+          import runpy
+          from pathlib import Path
+          paths = [Path("server.json"), Path("mcpserver.json")]
+          before = [path.read_bytes() for path in paths]
+          runpy.run_path("scripts/compile_manifest.py", run_name="__main__")
+          if before != [path.read_bytes() for path in paths]:
+              raise SystemExit("Compiled manifests differ from checked-in artifacts")
+          PYTHON
           uv build
 
   image:
