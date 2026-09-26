@@ -16,7 +16,7 @@ jobs:
       matrix:
         package: [servers/booking-demand-mcp, servers/klook-experiences-mcp]
     container:
-      image: ghcr.io/tesserix/base-python-adk-3.14:20260829@sha256:5a6fd1863ed7f37f3929cc596d0ec063c3077c11713cd334f14d1df2b30ef386
+      image: ghcr.io/tesserix/base-python-adk-3.14:20260912@sha256:4cbbea807dc3af7664824e7e270a9618eaa49cb16806c83d58236ce3c2aba523
       options: --user root
     defaults:
       run:
