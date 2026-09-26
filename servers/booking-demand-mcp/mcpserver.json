@@ -1,0 +1,110 @@
+{
+  "apiVersion": "registry.agentic.dev/v1alpha1",
+  "kind": "MCPServer",
+  "metadata": {
+    "annotations": {
+      "discovery.agentic.dev/summary": "Read partner accommodation offers.",
+      "discovery.agentic.dev/when-to-use": "compare stay offers from Booking.com"
+    },
+    "labels": {
+      "mcp.tesserix.app/class": "platform",
+      "mcp.tesserix.app/gateway-export": "false",
+      "transport": "streamable-http"
+    },
+    "name": "booking-demand-mcp",
+    "namespace": "australis",
+    "orgId": "tesserix",
+    "tag": "0.1.0rc6",
+    "tenantId": "australis",
+    "visibility": "internal"
+  },
+  "spec": {
+    "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+    "credentialRef": {
+      "header": "X-MCP-Key",
+      "key": "BOOKING_DEMAND_MCP_KEY",
+      "secretName": "product-mcp-upstream-keys"
+    },
+    "description": "Read Booking.com partner stay offers; disabled until partner activation.",
+    "name": "booking-demand-mcp",
+    "remotes": [
+      {
+        "type": "streamable-http",
+        "url": "https://booking-demand-mcp.australis.svc.cluster.local/mcp"
+      }
+    ],
+    "repository": {
+      "source": "github",
+      "url": "https://github.com/tesserix/australis"
+    },
+    "serviceSelector": {
+      "namespaces": {
+        "matchLabels": {
+          "kubernetes.io/metadata.name": "australis"
+        }
+      },
+      "services": {
+        "matchLabels": {
+          "app.kubernetes.io/name": "booking-demand-mcp"
+        }
+      }
+    },
+    "title": "Booking Demand MCP",
+    "version": "0.1.0rc6",
+    "x-tesserix": {
+      "adapter": "native",
+      "authoringVersion": "1.0",
+      "egressHosts": [
+        "demandapi-sandbox.booking.com",
+        "demandapi.booking.com"
+      ],
+      "lifecycle": "active",
+      "protocolVersions": [
+        "2026-07-28"
+      ],
+      "requiredScopes": [
+        "travel:stays:read"
+      ],
+      "routePolicy": {
+        "directAccess": false,
+        "gatewayPath": "/mcp/australis/booking-demand-mcp"
+      },
+      "semantic": {
+        "capabilities": [],
+        "domains": [
+          "travel"
+        ],
+        "keywords": [],
+        "notFor": [
+          "booking or payment actions"
+        ],
+        "risk": "low",
+        "summary": "Read partner accommodation offers.",
+        "whenToUse": [
+          "compare stay offers from Booking.com"
+        ]
+      },
+      "tools": [
+        {
+          "capabilities": [],
+          "description": "Read accommodation offers with separate display and total prices.",
+          "inputFingerprint": "0ed33db960b954faa46a0bf027930ec091e3915259ce5ba23510cab9806c1e53",
+          "inputSchema": {
+            "properties": {},
+            "required": [],
+            "type": "object"
+          },
+          "inputSchemaFingerprint": "c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699",
+          "name": "search_stays",
+          "outputFingerprint": "beb0370af39d8125362ffd2bc13ae8033c5ce8c30dce8ff5561579e13344bc71",
+          "requiredScopes": [
+            "travel:stays:read"
+          ],
+          "requires": [],
+          "semantic": {},
+          "status": "active"
+        }
+      ]
+    }
+  }
+}

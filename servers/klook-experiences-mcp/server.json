@@ -1,0 +1,17 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "description": "Disabled Klook experiences connector pending the partner contract.",
+  "name": "io.github.tesserix/klook-experiences-mcp",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://klook-experiences-mcp.australis.svc.cluster.local/mcp"
+    }
+  ],
+  "repository": {
+    "source": "github",
+    "url": "https://github.com/tesserix/australis"
+  },
+  "title": "Klook Experiences candidate",
+  "version": "0.1.0rc6"
+}
