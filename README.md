@@ -43,6 +43,14 @@ checkpoints worth stopping at.
 | [`diagrams/australis-orchestration.drawio`](./docs/diagrams/australis-orchestration.drawio) | 4 pages — context · task shapes · supervised hand-off · LLD |
 | [`diagrams/product-mcp-lifecycle.drawio`](./docs/diagrams/product-mcp-lifecycle.drawio) | 4 pages — product architecture · release lifecycle · identity and secrets · promotion gates |
 
+## Operator onboarding MCP
+
+The [Claude onboarding guide](docs/guides/operator-onboarding-mcp.md) connects
+privileged operational clients through the existing Registry and AgentGateway.
+The [design decision](docs/adr/0006-operator-onboarding-mcp.md) defines its
+stateless transport, exact OAuth roles and ownership. The server stays beside
+the onboarding API; this repository supplies the pinned, token-refreshing client.
+
 ## The three ideas the design rests on
 
 **Federated source, one platform contract.** A product-domain connector lives
