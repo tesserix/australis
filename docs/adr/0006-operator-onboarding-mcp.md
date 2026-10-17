@@ -54,7 +54,10 @@ the gateway and route-sync alerts cover the existing shared delivery path.
 Assets are customer identity boundaries, initial administrator memberships,
 tenant metadata and retained receipts. Threats include internet callers,
 another product, an agent with a generic gateway grant and injected customer
-names. The gateway checks the signed gateway audience and `agentgateway.mcp`.
+names. The route-specific Gateway policy checks the signed Gateway audience, exact
+Tesserix organization, `agentgateway.onboarding` and the onboarding read role.
+That admission role cannot reach other MCP routes; existing callers and their
+Gateway policies remain unchanged.
 The onboarding MCP additionally checks RS256, issuer, expiry, the onboarding
 resource audience, an access-token client identifier and project-scoped roles
 granted by the exact Tesserix organization. Generic role claims and unsigned

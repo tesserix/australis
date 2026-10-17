@@ -22,7 +22,8 @@ and a pinned copy of its generated contract. See
 
 Role names use the prefix `onboarding.helivanta.` in the AgentGateway project.
 The default `onboarding-mcp-claude-prod` machine has read and create, plus the
-gateway role. It has no adoption role, Zitadel management role, Kubernetes
+route-specific `agentgateway.onboarding` role. It cannot reach other MCP or
+model routes. It has no adoption role, Zitadel management role, Kubernetes
 RBAC, clinical privileges, model quota grant or credential-management tool.
 Tools the caller cannot use are absent from `tools/list` and cannot be invoked.
 Create authority does not imply adopt authority.
@@ -112,7 +113,7 @@ urn:zitadel:iam:org:projects:roles
 ```
 
 The first project is Gateway; the second is the onboarding resource. Both
-audiences are required. Tokens carry `agentgateway.mcp` and explicit onboarding
+audiences are required. Tokens carry `agentgateway.onboarding` and explicit onboarding
 roles under the project-scoped Gateway role claim, granted by the Tesserix
 organization. Generic Gateway ADK tokens cannot use these tools. The MCP server
 does not turn its caller into a console user or forward the token to Zitadel.
