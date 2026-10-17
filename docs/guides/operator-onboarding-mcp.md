@@ -40,6 +40,7 @@ contract and signed roles; a model-supplied product argument cannot enable them.
 1. Build the reviewed client from this repository:
 
    ```sh
+   mkdir -p "$HOME/.local/bin"
    go build -o "$HOME/.local/bin/tesserix-onboarding-mcp" ./cmd/onboarding-mcp
    ```
 
@@ -144,6 +145,11 @@ disable the MCP route/enablement through reviewed GitOps and remove the grant.
 
 4. Call `request_hospital_onboarding`. Save the returned `tenantId` and exact
    request key. The normal initial state is `pending`.
+   Idempotency is scoped to the verified agent subject, product and request
+   key. A handoff to a different machine identity must resume with the retained
+   tenant UUID. Reusing the same key under another subject can identify a new
+   request; do not repeat creation during a handoff.
+
 5. Call `get_hospital_onboarding` with `{"tenantId":"<returned-uuid>"}`.
    Completion requires `state: complete`, current observed generation,
    `IdentityReconciled`, activation, and non-empty archive object/generation.
